@@ -1,0 +1,282 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "APP-.#####",
+ "creation": "2026-08-07 13:34:58.976679",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "personal_info_sec",
+  "first_name",
+  "middle_name",
+  "last_name",
+  "col_break_personal",
+  "date_of_birth",
+  "gender",
+  "nationality",
+  "contact_info_sec",
+  "email",
+  "phone_number",
+  "alternate_phone",
+  "col_break_contact",
+  "address_line_1",
+  "city",
+  "country",
+  "identification_sec",
+  "passport_number",
+  "passport_expiry",
+  "col_break_id",
+  "national_id",
+  "education_employment_sec",
+  "highest_education",
+  "institution",
+  "graduation_year",
+  "col_break_edu_emp",
+  "current_employer",
+  "years_of_experience",
+  "internal_info_sec",
+  "applicant_state",
+  "registration_date",
+  "col_break_internal",
+  "assigned_employee",
+  "missing_data_indicator",
+  "financials_sec",
+  "fees",
+  "income_expense_logs"
+ ],
+ "fields": [
+  {
+   "default": "Draft",
+   "fieldname": "applicant_state",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Applicant State",
+   "options": "Draft\nRegistered\nWaiting For Data\nData Complete\nCV Generated\nContract Processing\nDocumentation\nInternal Processing\nCompleted\nTicket Issued\nDeparted",
+   "read_only": 1
+  },
+  {
+   "fieldname": "phone_number",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Phone Number",
+   "reqd": 1
+  },
+  {
+   "fieldname": "personal_info_sec",
+   "fieldtype": "Section Break",
+   "label": "Personal Information"
+  },
+  {
+   "fieldname": "first_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "First Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "middle_name",
+   "fieldtype": "Data",
+   "label": "Middle Name"
+  },
+  {
+   "fieldname": "last_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Last Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "col_break_personal",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "date_of_birth",
+   "fieldtype": "Date",
+   "label": "Date of Birth"
+  },
+  {
+   "fieldname": "gender",
+   "fieldtype": "Select",
+   "label": "Gender",
+   "options": "\nMale\nFemale",
+   "reqd": 1
+  },
+  {
+   "fieldname": "nationality",
+   "fieldtype": "Link",
+   "label": "Nationality",
+   "options": "Country",
+   "reqd": 1
+  },
+  {
+   "fieldname": "contact_info_sec",
+   "fieldtype": "Section Break",
+   "label": "Contact Information"
+  },
+  {
+   "fieldname": "email",
+   "fieldtype": "Data",
+   "label": "Email Address",
+   "options": "Email"
+  },
+  {
+   "fieldname": "alternate_phone",
+   "fieldtype": "Data",
+   "label": "Alternate Phone"
+  },
+  {
+   "fieldname": "col_break_contact",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "address_line_1",
+   "fieldtype": "Data",
+   "label": "Address Line 1"
+  },
+  {
+   "fieldname": "city",
+   "fieldtype": "Data",
+   "label": "City",
+   "reqd": 1
+  },
+  {
+   "fieldname": "country",
+   "fieldtype": "Data",
+   "label": "Country",
+   "reqd": 1
+  },
+  {
+   "fieldname": "identification_sec",
+   "fieldtype": "Section Break",
+   "label": "Identification"
+  },
+  {
+   "fieldname": "passport_number",
+   "fieldtype": "Data",
+   "label": "Passport Number"
+  },
+  {
+   "fieldname": "passport_expiry",
+   "fieldtype": "Date",
+   "label": "Passport Expiry Date"
+  },
+  {
+   "fieldname": "col_break_id",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "national_id",
+   "fieldtype": "Data",
+   "label": "National ID Number"
+  },
+  {
+   "fieldname": "education_employment_sec",
+   "fieldtype": "Section Break",
+   "label": "Education & Employment"
+  },
+  {
+   "fieldname": "highest_education",
+   "fieldtype": "Select",
+   "label": "Highest Education Level",
+   "options": "\nHigh School\nAssociate Degree\nBachelor's Degree\nMaster's Degree\nDoctorate\nOther"
+  },
+  {
+   "fieldname": "institution",
+   "fieldtype": "Data",
+   "label": "Institution Name"
+  },
+  {
+   "fieldname": "graduation_year",
+   "fieldtype": "Int",
+   "label": "Graduation Year"
+  },
+  {
+   "fieldname": "col_break_edu_emp",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "current_employer",
+   "fieldtype": "Data",
+   "label": "Current/Last Employer"
+  },
+  {
+   "fieldname": "years_of_experience",
+   "fieldtype": "Float",
+   "label": "Years of Experience"
+  },
+  {
+   "fieldname": "internal_info_sec",
+   "fieldtype": "Section Break",
+   "label": "Internal Information"
+  },
+  {
+   "default": "Today",
+   "fieldname": "registration_date",
+   "fieldtype": "Date",
+   "label": "Registration Date"
+  },
+  {
+   "fieldname": "col_break_internal",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "assigned_employee",
+   "fieldtype": "Link",
+   "label": "Assigned Employee",
+   "options": "User"
+  },
+  {
+   "fieldname": "missing_data_indicator",
+   "fieldtype": "HTML",
+   "label": "Missing Data Indicator"
+  },
+  {
+   "fieldname": "financials_sec",
+   "fieldtype": "Section Break",
+   "label": "Financials"
+  },
+  {
+   "fieldname": "fees",
+   "fieldtype": "Table",
+   "label": "Fees & Transactions",
+   "options": "Applicant Fee"
+  },
+  {
+   "fieldname": "income_expense_logs",
+   "fieldtype": "Table",
+   "label": "Income / Expenses",
+   "options": "Income Expense Log"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-08-08 09:49:46.765202",
+ "modified_by": "Administrator",
+ "module": "Applicant Processing",
+ "name": "Applicant",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "first_name",
+ "track_changes": 1
+}

@@ -1,0 +1,166 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "DSR-.#####",
+ "creation": "2026-08-08 04:40:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "applicant_dossier",
+  "dossier_data_sec",
+  "first_name",
+  "last_name",
+  "passport_number",
+  "col_break_1",
+  "sponsor_name",
+  "contractor_name",
+  "agency",
+  "status_sec",
+  "lms_status",
+  "wakala_status",
+  "injaz_status",
+  "stamp_status",
+  "ticket_status",
+  "departure_status",
+  "financials_sec",
+  "financials"
+ ],
+ "fields": [
+  {
+   "fieldname": "applicant_dossier",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Applicant Dossier",
+   "options": "Applicant Dossier",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "dossier_data_sec",
+   "fieldtype": "Section Break",
+   "label": "Dossier Data"
+  },
+  {
+   "fetch_from": "applicant_dossier.first_name",
+   "fieldname": "first_name",
+   "fieldtype": "Data",
+   "label": "First Name",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "applicant_dossier.last_name",
+   "fieldname": "last_name",
+   "fieldtype": "Data",
+   "label": "Last Name",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "applicant_dossier.passport_number",
+   "fieldname": "passport_number",
+   "fieldtype": "Data",
+   "label": "Passport Number",
+   "read_only": 1
+  },
+  {
+   "fieldname": "col_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "applicant_dossier.sponsor_name",
+   "fieldname": "sponsor_name",
+   "fieldtype": "Data",
+   "label": "Sponsor Name",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "applicant_dossier.contractor_name",
+   "fieldname": "contractor_name",
+   "fieldtype": "Data",
+   "label": "Contractor Name",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "applicant_dossier.agency",
+   "fieldname": "agency",
+   "fieldtype": "Data",
+   "label": "Agency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "status_sec",
+   "fieldtype": "Section Break",
+   "label": "Progress Statuses"
+  },
+  {
+   "fieldname": "lms_status",
+   "fieldtype": "Data",
+   "label": "LMS Status",
+   "read_only": 1
+  },
+  {
+   "fieldname": "wakala_status",
+   "fieldtype": "Data",
+   "label": "Wakala Status",
+   "read_only": 1
+  },
+  {
+   "fieldname": "injaz_status",
+   "fieldtype": "Data",
+   "label": "Injaz Status",
+   "read_only": 1
+  },
+  {
+   "fieldname": "stamp_status",
+   "fieldtype": "Data",
+   "label": "Stamp Status",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ticket_status",
+   "fieldtype": "Data",
+   "label": "Ticket Status",
+   "read_only": 1
+  },
+  {
+   "fieldname": "departure_status",
+   "fieldtype": "Data",
+   "label": "Departure Status",
+   "read_only": 1
+  },
+  {
+   "fieldname": "financials_sec",
+   "fieldtype": "Section Break",
+   "label": "Income / Expenses"
+  },
+  {
+   "fieldname": "financials",
+   "fieldtype": "Table",
+   "label": "Financial Logs",
+   "options": "Income Expense Log"
+  }
+ ],
+ "links": [],
+ "modified": "2026-08-08 04:40:00.000000",
+ "modified_by": "Administrator",
+ "module": "Applicant Processing",
+ "name": "DSR",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

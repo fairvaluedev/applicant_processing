@@ -1,0 +1,59 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-08-07 13:38:19.482819",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "contractor",
+  "sent_date",
+  "comm_method",
+  "response_status"
+ ],
+ "fields": [
+  {
+   "fieldname": "contractor",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Contractor",
+   "options": "Contractor"
+  },
+  {
+   "fieldname": "sent_date",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Sent Date"
+  },
+  {
+   "fieldname": "comm_method",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Communication Method",
+   "options": "Email\nWhatsApp"
+  },
+  {
+   "default": "Pending",
+   "fieldname": "response_status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Response Status",
+   "options": "Pending\nAccepted\nRejected"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-08-07 13:38:19.482819",
+ "modified_by": "Administrator",
+ "module": "Applicant Processing",
+ "name": "Contract Request Recipient",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

@@ -1,0 +1,67 @@
+{
+ "actions": [],
+ "creation": "2026-08-08 00:35:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "istable": 1,
+ "field_order": [
+  "contractor",
+  "channel",
+  "shared_by",
+  "shared_date",
+  "status"
+ ],
+ "fields": [
+  {
+   "fieldname": "contractor",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Contractor",
+   "options": "Contractor",
+   "reqd": 1
+  },
+  {
+   "fieldname": "channel",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Channel",
+   "options": "WhatsApp\nEmail",
+   "reqd": 1
+  },
+  {
+   "fieldname": "shared_by",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Shared By",
+   "options": "User",
+   "reqd": 1
+  },
+  {
+   "fieldname": "shared_date",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Shared Date",
+   "reqd": 1
+  },
+  {
+   "default": "Sent",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Sent\nDelivered\nFailed",
+   "reqd": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-08-08 00:35:00.000000",
+ "modified_by": "Administrator",
+ "module": "Applicant Processing",
+ "name": "CV Share Log",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

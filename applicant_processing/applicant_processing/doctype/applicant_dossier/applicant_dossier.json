@@ -1,0 +1,185 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "DOSSIER-.#####",
+ "creation": "2026-08-08 04:16:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "is_submittable": 1,
+ "field_order": [
+  "applicant",
+  "first_name",
+  "last_name",
+  "nationality",
+  "passport_number",
+  "cv_sec",
+  "cv_record",
+  "cv_status",
+  "contract_sec",
+  "contract_request",
+  "contract_status",
+  "file_sec",
+  "attached_file",
+  "parsed_data_sec",
+  "sponsor_name",
+  "amount_detail",
+  "contractor_name",
+  "agency",
+  "is_parsed",
+  "income_expense_logs_sec",
+  "financials"
+ ],
+ "fields": [
+  {
+   "fieldname": "applicant",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Applicant",
+   "options": "Applicant",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fetch_from": "applicant.first_name",
+   "fieldname": "first_name",
+   "fieldtype": "Data",
+   "label": "First Name",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "applicant.last_name",
+   "fieldname": "last_name",
+   "fieldtype": "Data",
+   "label": "Last Name",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "applicant.nationality",
+   "fieldname": "nationality",
+   "fieldtype": "Data",
+   "label": "Nationality",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "applicant.passport_number",
+   "fieldname": "passport_number",
+   "fieldtype": "Data",
+   "label": "Passport Number",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cv_sec",
+   "fieldtype": "Section Break",
+   "label": "CV Details"
+  },
+  {
+   "fieldname": "cv_record",
+   "fieldtype": "Link",
+   "label": "CV Record",
+   "options": "CV Record"
+  },
+  {
+   "fetch_from": "cv_record.status",
+   "fieldname": "cv_status",
+   "fieldtype": "Data",
+   "label": "CV Status",
+   "read_only": 1
+  },
+  {
+   "fieldname": "contract_sec",
+   "fieldtype": "Section Break",
+   "label": "Contract Details"
+  },
+  {
+   "fieldname": "contract_request",
+   "fieldtype": "Link",
+   "label": "Contract Request",
+   "options": "Contract Request"
+  },
+  {
+   "fetch_from": "contract_request.status",
+   "fieldname": "contract_status",
+   "fieldtype": "Data",
+   "label": "Contract Status",
+   "read_only": 1
+  },
+  {
+   "fieldname": "file_sec",
+   "fieldtype": "Section Break",
+   "label": "Dossier File"
+  },
+  {
+   "fieldname": "attached_file",
+   "fieldtype": "Attach",
+   "label": "Attached File"
+  },
+  {
+   "fieldname": "parsed_data_sec",
+   "fieldtype": "Section Break",
+   "label": "Parsed Data"
+  },
+  {
+   "fieldname": "sponsor_name",
+   "fieldtype": "Data",
+   "label": "Sponsor Name"
+  },
+  {
+   "fieldname": "amount_detail",
+   "fieldtype": "Currency",
+   "label": "Amount Detail"
+  },
+  {
+   "fieldname": "contractor_name",
+   "fieldtype": "Data",
+   "label": "Contractor Name"
+  },
+  {
+   "fieldname": "agency",
+   "fieldtype": "Data",
+   "label": "Agency"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_parsed",
+   "fieldtype": "Check",
+   "hidden": 1,
+   "label": "Is Parsed"
+  },
+  {
+   "fieldname": "income_expense_logs_sec",
+   "fieldtype": "Section Break",
+   "label": "Income / Expenses"
+  },
+  {
+   "fieldname": "financials",
+   "fieldtype": "Table",
+   "label": "Financial Logs",
+   "options": "Income Expense Log"
+  }
+ ],
+ "links": [],
+ "modified": "2026-08-08 04:16:00.000000",
+ "modified_by": "Administrator",
+ "module": "Applicant Processing",
+ "name": "Applicant Dossier",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
