@@ -105,28 +105,90 @@ def get_pending_documents(limit=10):
 @frappe.whitelist()
 def get_accounting_summary():
     """
-    Returns a financial summary for the Accounting Dashboard:
-    - Overall totals (income, expense, net balance)
-    - Breakdown by fee type
-    - Per-applicant summary (top 20 by total activity)
-    - 20 most recent income/expense log entries
+    Returns a financial summary for the Accounting Dashboard across ALL parts:
+    - Applicant Fees & Direct Logs
+    - CV Record
+    - LMS Clearance
+    - Wakala Clearance
+    - Injaz Clearance
+    - DSR Stamp
+    - DSR Ticket
+    - DSR Departure
+    - Applicant Dossier & DSR
     """
 
-    # ── Overall totals from all Income Expense Log rows ──
-    totals = frappe.db.sql("""
+    # Helper subquery for joining all parent doctypes to get their Applicant link
+    base_sql = """
+        FROM `tabIncome Expense Log` iel
+        LEFT JOIN `tabCV Record` cvr ON iel.parenttype = 'CV Record' AND iel.parent = cvr.name
+        LEFT JOIN `tabApplicant Dossier` dos ON iel.parenttype = 'Applicant Dossier' AND iel.parent = dos.name
+        LEFT JOIN `tabDSR` dsr ON iel.parenttype = 'DSR' AND iel.parent = dsr.name
+        LEFT JOIN `tabApplicant Dossier` dsr_dos ON dsr.applicant_dossier = dsr_dos.name
+
+        LEFT JOIN `tabLMS Clearance` lms ON iel.parenttype = 'LMS Clearance' AND iel.parent = lms.name
+        LEFT JOIN `tabDSR` lms_dsr ON lms.dsr = lms_dsr.name
+        LEFT JOIN `tabApplicant Dossier` lms_dos ON lms_dsr.applicant_dossier = lms_dos.name
+
+        LEFT JOIN `tabWakala Clearance` wak ON iel.parenttype = 'Wakala Clearance' AND iel.parent = wak.name
+        LEFT JOIN `tabDSR` wak_dsr ON wak.dsr = wak_dsr.name
+        LEFT JOIN `tabApplicant Dossier` wak_dos ON wak_dsr.applicant_dossier = wak_dos.name
+
+        LEFT JOIN `tabInjaz Clearance` inj ON iel.parenttype = 'Injaz Clearance' AND iel.parent = inj.name
+        LEFT JOIN `tabDSR` inj_dsr ON inj.dsr = inj_dsr.name
+        LEFT JOIN `tabApplicant Dossier` inj_dos ON inj_dsr.applicant_dossier = inj_dos.name
+
+        LEFT JOIN `tabDSR Stamp` stp ON iel.parenttype = 'DSR Stamp' AND iel.parent = stp.name
+        LEFT JOIN `tabDSR` stp_dsr ON stp.dsr = stp_dsr.name
+        LEFT JOIN `tabApplicant Dossier` stp_dos ON stp_dsr.applicant_dossier = stp_dos.name
+
+        LEFT JOIN `tabDSR Ticket` tkt ON iel.parenttype = 'DSR Ticket' AND iel.parent = tkt.name
+        LEFT JOIN `tabDSR` tkt_dsr ON tkt.dsr = tkt_dsr.name
+        LEFT JOIN `tabApplicant Dossier` tkt_dos ON tkt_dsr.applicant_dossier = tkt_dos.name
+
+        LEFT JOIN `tabDSR Departure` dep ON iel.parenttype = 'DSR Departure' AND iel.parent = dep.name
+        LEFT JOIN `tabDSR` dep_dsr ON dep.dsr = dep_dsr.name
+        LEFT JOIN `tabApplicant Dossier` dep_dos ON dep_dsr.applicant_dossier = dep_dos.name
+    """
+
+    # ── 1. Overall totals across ALL parts ──
+    totals = frappe.db.sql(f"""
         SELECT
             SUM(CASE WHEN iel.transaction_type = 'Income'  THEN iel.amount ELSE 0 END) AS total_income,
             SUM(CASE WHEN iel.transaction_type = 'Expense' THEN iel.amount ELSE 0 END) AS total_expense,
             COUNT(*) AS transaction_count
-        FROM `tabIncome Expense Log` iel
-        WHERE iel.parenttype = 'Applicant'
+        {base_sql}
     """, as_dict=True)
 
     total_income  = float(totals[0].total_income  or 0)
     total_expense = float(totals[0].total_expense or 0)
     transaction_count = int(totals[0].transaction_count or 0)
 
-    # ── Breakdown by fee type (from Applicant Fee rows) ──
+    # ── 2. Breakdown by Stage / Part (DocType) ──
+    by_stage_rows = frappe.db.sql(f"""
+        SELECT
+            iel.parenttype AS stage,
+            SUM(CASE WHEN iel.transaction_type = 'Income'  THEN iel.amount ELSE 0 END) AS income,
+            SUM(CASE WHEN iel.transaction_type = 'Expense' THEN iel.amount ELSE 0 END) AS expense,
+            SUM(CASE WHEN iel.transaction_type = 'Income'  THEN iel.amount
+                     WHEN iel.transaction_type = 'Expense' THEN -iel.amount ELSE 0 END) AS net,
+            COUNT(*) AS count
+        {base_sql}
+        GROUP BY iel.parenttype
+        ORDER BY (income + expense) DESC
+    """, as_dict=True)
+
+    by_stage = [
+        {
+            "stage": r.stage,
+            "income": float(r.income or 0),
+            "expense": float(r.expense or 0),
+            "net": float(r.net or 0),
+            "count": int(r.count or 0)
+        }
+        for r in by_stage_rows
+    ]
+
+    # ── 3. Breakdown by fee type (from Applicant Fee rows) ──
     by_fee_type_rows = frappe.db.sql("""
         SELECT
             af.fee_type,
@@ -143,34 +205,59 @@ def get_accounting_summary():
         key = f"{row.fee_type} ({row.direction})"
         by_fee_type[key] = float(row.total or 0)
 
-    # ── Per-applicant summary (top 20) ──
-    per_applicant = frappe.db.sql("""
+    # ── 4. Per-applicant summary across ALL stage parts (top 20) ──
+    per_applicant = frappe.db.sql(f"""
         SELECT
-            iel.parent AS applicant,
+            COALESCE(
+                CASE WHEN iel.parenttype = 'Applicant' THEN iel.parent END,
+                cvr.applicant,
+                dos.applicant,
+                dsr_dos.applicant,
+                lms_dos.applicant,
+                wak_dos.applicant,
+                inj_dos.applicant,
+                stp_dos.applicant,
+                tkt_dos.applicant,
+                dep_dos.applicant,
+                'Unlinked / General'
+            ) AS applicant,
             SUM(CASE WHEN iel.transaction_type = 'Income'  THEN iel.amount ELSE 0 END) AS income,
             SUM(CASE WHEN iel.transaction_type = 'Expense' THEN iel.amount ELSE 0 END) AS expense,
             SUM(CASE WHEN iel.transaction_type = 'Income'  THEN iel.amount
                      WHEN iel.transaction_type = 'Expense' THEN -iel.amount ELSE 0 END) AS net
-        FROM `tabIncome Expense Log` iel
-        WHERE iel.parenttype = 'Applicant'
-        GROUP BY iel.parent
+        {base_sql}
+        GROUP BY applicant
         ORDER BY SUM(iel.amount) DESC
         LIMIT 20
     """, as_dict=True)
 
-    # ── 20 most recent transactions ──
-    recent = frappe.db.sql("""
+    # ── 5. 25 most recent transactions across ALL parts ──
+    recent = frappe.db.sql(f"""
         SELECT
-            iel.parent AS applicant,
+            iel.name,
+            COALESCE(
+                CASE WHEN iel.parenttype = 'Applicant' THEN iel.parent END,
+                cvr.applicant,
+                dos.applicant,
+                dsr_dos.applicant,
+                lms_dos.applicant,
+                wak_dos.applicant,
+                inj_dos.applicant,
+                stp_dos.applicant,
+                tkt_dos.applicant,
+                dep_dos.applicant,
+                'Unlinked'
+            ) AS applicant,
+            iel.parenttype AS stage,
+            iel.parent AS stage_doc,
             iel.transaction_type,
             iel.amount,
             iel.date,
             iel.description,
             iel.source_doctype
-        FROM `tabIncome Expense Log` iel
-        WHERE iel.parenttype = 'Applicant'
+        {base_sql}
         ORDER BY iel.date DESC, iel.creation DESC
-        LIMIT 20
+        LIMIT 25
     """, as_dict=True)
 
     return {
@@ -178,7 +265,9 @@ def get_accounting_summary():
         "total_expense":      total_expense,
         "net_balance":        total_income - total_expense,
         "transaction_count":  transaction_count,
+        "by_stage":           by_stage,
         "by_fee_type":        by_fee_type,
         "per_applicant":      per_applicant,
         "recent_transactions": recent,
     }
+

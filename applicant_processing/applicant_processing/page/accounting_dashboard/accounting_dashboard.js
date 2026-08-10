@@ -57,6 +57,37 @@ function render_dashboard(data) {
 		</div>
 	</div>`;
 
+	// ── Breakdown by Stage / Part ────────────────────────────────────
+	const stage_rows = (data.by_stage || [])
+		.map(
+			(r) =>
+				`<tr>
+				<td><strong>${r.stage}</strong></td>
+				<td class="text-right income-text">${fmt_currency(r.income)}</td>
+				<td class="text-right expense-text">${fmt_currency(r.expense)}</td>
+				<td class="text-right ${r.net >= 0 ? "income-text" : "expense-text"}">${fmt_currency(r.net)}</td>
+				<td class="text-right text-muted">${r.count}</td>
+			</tr>`
+		)
+		.join("");
+
+	const stage_html = stage_rows
+		? `
+	<div class="acc-section">
+		<h5 class="acc-section-title">Breakdown by Stage / Component (CV, LMS, Wakala, Injaz, Stamp, Ticket, Departure)</h5>
+		<table class="acc-table">
+			<thead><tr>
+				<th>Stage / Component</th>
+				<th class="text-right">Income</th>
+				<th class="text-right">Expense</th>
+				<th class="text-right">Net</th>
+				<th class="text-right">Transactions</th>
+			</tr></thead>
+			<tbody>${stage_rows}</tbody>
+		</table>
+	</div>`
+		: "";
+
 	// ── By Fee Type Table ──────────────────────────────────────────
 	const fee_rows = Object.entries(data.by_fee_type || {})
 		.sort((a, b) => b[1] - a[1])
@@ -93,7 +124,7 @@ function render_dashboard(data) {
 	const per_applicant_html = applicant_rows
 		? `
 	<div class="acc-section">
-		<h5 class="acc-section-title">Top Applicants by Activity</h5>
+		<h5 class="acc-section-title">Top Applicants by Financial Activity</h5>
 		<table class="acc-table">
 			<thead><tr>
 				<th>Applicant</th>
@@ -113,6 +144,7 @@ function render_dashboard(data) {
 				`<tr>
 				<td>${txn.date || ""}</td>
 				<td><a href="/app/applicant/${txn.applicant}">${txn.applicant}</a></td>
+				<td><span class="acc-stage-badge">${txn.stage || "Applicant"}</span></td>
 				<td>
 					<span class="acc-badge ${txn.transaction_type === "Income" ? "badge-income" : "badge-expense"}">
 						${txn.transaction_type}
@@ -128,11 +160,12 @@ function render_dashboard(data) {
 	const recent_html = recent_rows
 		? `
 	<div class="acc-section">
-		<h5 class="acc-section-title">Recent Transactions</h5>
+		<h5 class="acc-section-title">Recent Transactions Across All Stages</h5>
 		<table class="acc-table">
 			<thead><tr>
 				<th>Date</th>
 				<th>Applicant</th>
+				<th>Stage</th>
 				<th>Type</th>
 				<th class="text-right">Amount</th>
 				<th>Description</th>
@@ -232,6 +265,16 @@ function render_dashboard(data) {
 				font-size: 11px;
 				font-weight: 600;
 			}
+			.acc-stage-badge {
+				display: inline-block;
+				padding: 2px 8px;
+				border-radius: 6px;
+				font-size: 11px;
+				font-weight: 500;
+				background: #f1f5f9;
+				color: #334155;
+				border: 1px solid #cbd5e1;
+			}
 			.badge-income  { background: #dcfce7; color: #15803d; }
 			.badge-expense { background: #fee2e2; color: #b91c1c; }
 			.acc-empty {
@@ -244,5 +287,5 @@ function render_dashboard(data) {
 		document.head.appendChild(style);
 	}
 
-	root.innerHTML = kpi_html + fee_type_html + per_applicant_html + recent_html;
+	root.innerHTML = kpi_html + stage_html + fee_type_html + per_applicant_html + recent_html;
 }

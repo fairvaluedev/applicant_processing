@@ -34,7 +34,9 @@
   "education_sec",
   "highest_education",
   "institution",
-  "graduation_year"
+  "graduation_year",
+  "financials_sec",
+  "financials"
  ],
  "fields": [
   {
@@ -203,6 +205,17 @@
    "fieldtype": "Int",
    "label": "Graduation Year",
    "read_only": 1
+  },
+  {
+   "fieldname": "financials_sec",
+   "fieldtype": "Section Break",
+   "label": "Income / Expenses"
+  },
+  {
+   "fieldname": "financials",
+   "fieldtype": "Table",
+   "label": "Financial Logs",
+   "options": "Income Expense Log"
   }
  ],
  "grid_page_length": 50,
