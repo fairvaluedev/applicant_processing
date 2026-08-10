@@ -42,6 +42,10 @@
   "assigned_employee",
   "missing_data_indicator",
   "financials_sec",
+  "total_income",
+  "total_expense",
+  "net_balance",
+  "col_break_financials",
   "fees",
   "income_expense_logs"
  ],
@@ -235,6 +239,29 @@
    "fieldname": "financials_sec",
    "fieldtype": "Section Break",
    "label": "Financials"
+  },
+  {
+   "fieldname": "total_income",
+   "fieldtype": "Currency",
+   "label": "Total Income",
+   "read_only": 1,
+   "in_list_view": 0
+  },
+  {
+   "fieldname": "total_expense",
+   "fieldtype": "Currency",
+   "label": "Total Expense",
+   "read_only": 1
+  },
+  {
+   "fieldname": "net_balance",
+   "fieldtype": "Currency",
+   "label": "Net Balance",
+   "read_only": 1
+  },
+  {
+   "fieldname": "col_break_financials",
+   "fieldtype": "Column Break"
   },
   {
    "fieldname": "fees",

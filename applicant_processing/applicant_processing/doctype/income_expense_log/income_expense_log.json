@@ -9,7 +9,10 @@
   "transaction_type",
   "amount",
   "date",
-  "description"
+  "description",
+  "col_break_1",
+  "source_doctype",
+  "source_fee_row"
  ],
  "fields": [
   {
@@ -39,10 +42,28 @@
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Description"
+  },
+  {
+   "fieldname": "col_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "source_doctype",
+   "fieldtype": "Data",
+   "label": "Source",
+   "read_only": 1,
+   "default": "Manual"
+  },
+  {
+   "fieldname": "source_fee_row",
+   "fieldtype": "Data",
+   "label": "Source Fee Row",
+   "hidden": 1,
+   "read_only": 1
   }
  ],
  "links": [],
- "modified": "2026-08-08 04:40:00.000000",
+ "modified": "2026-08-10 10:00:00.000000",
  "modified_by": "Administrator",
  "module": "Applicant Processing",
  "name": "Income Expense Log",

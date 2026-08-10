@@ -32,6 +32,10 @@ class Applicant(Document):
     def validate(self):
         # 1. Mandatory data to go to draft state (always required)
         self._check_missing(DRAFT_REQUIRED_FIELDS)
+        # 2. Sync fee rows to income/expense log on each save
+        self._sync_income_expense_logs()
+        # 3. Recompute financial totals
+        self._recalculate_totals()
 
     def _check_missing(self, field_map):
         missing = [label for field, label in field_map.items() if not self.get(field)]
@@ -44,6 +48,81 @@ class Applicant(Document):
         if self.applicant_state not in STATE_ORDER:
             return False
         return STATE_ORDER.index(self.applicant_state) >= STATE_ORDER.index(target_state)
+
+    def _sync_income_expense_logs(self):
+        """
+        Keeps the Income Expense Log child table in sync with the Fees table.
+
+        Strategy (Option B — log immediately on row creation):
+        - Every fee row produces exactly one auto-generated log entry
+          (identified by source_fee_row == fee row name).
+        - On save we compare the current fee rows against existing auto entries:
+            * New fee rows → append a new log entry.
+            * Modified fee rows (amount/direction/type) → update the existing log entry.
+            * Deleted fee rows → remove the orphaned log entry.
+        - Manual entries (source_doctype == "Manual" or source_fee_row is blank)
+          are never touched.
+        """
+        import frappe.utils
+
+        # Build a dict of current fee rows keyed by their child-table row name.
+        # New (unsaved) rows will have a blank name; we handle those below.
+        current_fees = {}
+        for fee in (self.fees or []):
+            if fee.name:
+                current_fees[fee.name] = fee
+
+        # Build a dict of existing AUTO log entries keyed by source_fee_row
+        auto_logs = {}
+        for log in (self.income_expense_logs or []):
+            if log.source_fee_row:
+                auto_logs[log.source_fee_row] = log
+
+        # ── 1. Update or create entries for every current fee row ──
+        for fee_row_name, fee in current_fees.items():
+            description = f"{fee.fee_type} – auto"
+            date_val = fee.payment_date or frappe.utils.today()
+            txn_type = fee.direction  # "Income" or "Expense"
+
+            if fee_row_name in auto_logs:
+                # Update existing log entry if anything changed
+                log = auto_logs[fee_row_name]
+                log.transaction_type = txn_type
+                log.amount = fee.amount or 0
+                log.date = date_val
+                log.description = description
+                log.source_doctype = "Applicant Fee"
+            else:
+                # Append a new auto log entry
+                self.append("income_expense_logs", {
+                    "transaction_type": txn_type,
+                    "amount": fee.amount or 0,
+                    "date": date_val,
+                    "description": description,
+                    "source_doctype": "Applicant Fee",
+                    "source_fee_row": fee_row_name,
+                })
+
+        # ── 2. Remove log entries whose fee row no longer exists ──
+        self.income_expense_logs = [
+            log for log in (self.income_expense_logs or [])
+            if not log.source_fee_row or log.source_fee_row in current_fees
+        ]
+
+    def _recalculate_totals(self):
+        """Sums Income Expense Log rows to compute total_income, total_expense, net_balance."""
+        total_income = 0.0
+        total_expense = 0.0
+
+        for log in (self.income_expense_logs or []):
+            if log.transaction_type == "Income":
+                total_income += (log.amount or 0)
+            elif log.transaction_type == "Expense":
+                total_expense += (log.amount or 0)
+
+        self.total_income = total_income
+        self.total_expense = total_expense
+        self.net_balance = total_income - total_expense
 
     def on_update(self):
         pass
