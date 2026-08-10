@@ -174,7 +174,7 @@ def get_accounting_summary():
             COUNT(*) AS count
         {base_sql}
         GROUP BY iel.parenttype
-        ORDER BY (income + expense) DESC
+        ORDER BY SUM(iel.amount) DESC
     """, as_dict=True)
 
     by_stage = [
