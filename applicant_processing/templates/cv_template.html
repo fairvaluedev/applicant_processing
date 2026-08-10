@@ -3,85 +3,107 @@
 <head>
 <meta charset="UTF-8">
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
-
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
   body {
-    font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
-    font-size: 10.5pt;
+    font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif;
+    font-size: 10pt;
     color: #1a1a2e;
-    background: #fff;
-    line-height: 1.5;
+    background: #ffffff;
+    line-height: 1.4;
+  }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
   }
 
   /* ── Header ────────────────────────────────────────────────── */
-  .header {
-    background: linear-gradient(135deg, #16213e 0%, #0f3460 60%, #1a6b8a 100%);
-    color: #fff;
-    padding: 32px 40px 28px;
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-end;
+  .header-table {
+    background-color: #0f3460;
+    color: #ffffff;
+    padding: 24px 32px;
   }
 
-  .header-left .name {
-    font-size: 26pt;
-    font-weight: 700;
+  .header-table td {
+    vertical-align: bottom;
+  }
+
+  .name {
+    font-size: 24pt;
+    font-weight: bold;
     letter-spacing: -0.5px;
     line-height: 1.1;
   }
 
-  .header-left .ref {
-    margin-top: 6px;
+  .ref {
+    margin-top: 4px;
     font-size: 8.5pt;
-    opacity: 0.65;
-    letter-spacing: 1px;
+    color: #b0c4de;
+    letter-spacing: 0.8px;
     text-transform: uppercase;
+  }
+
+  .state-badge {
+    display: inline-block;
+    background-color: #1a6b8a;
+    color: #ffffff;
+    font-size: 7.5pt;
+    font-weight: bold;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    padding: 3px 10px;
+    border-radius: 12px;
+    margin-top: 8px;
   }
 
   .header-right {
     text-align: right;
-    font-size: 9pt;
-    opacity: 0.85;
-    line-height: 1.8;
+    font-size: 8.5pt;
+    color: #e0e6ed;
+    line-height: 1.6;
   }
 
   .header-right .label {
-    opacity: 0.55;
-    font-size: 7.5pt;
+    color: #94a3b8;
+    font-size: 7pt;
     text-transform: uppercase;
     letter-spacing: 0.8px;
   }
 
-  /* ── Body layout ────────────────────────────────────────────── */
-  .body {
-    display: flex;
-    min-height: calc(100vh - 100px);
+  /* ── Layout Body ───────────────────────────────────────────── */
+  .layout-table {
+    width: 100%;
+    table-layout: fixed;
+  }
+
+  .sidebar-td {
+    width: 220px;
+    background-color: #f0f4f8;
+    padding: 24px 18px;
+    border-right: 1px solid #dce3ea;
+    vertical-align: top;
+  }
+
+  .main-td {
+    padding: 24px 28px;
+    vertical-align: top;
   }
 
   /* ── Sidebar ────────────────────────────────────────────────── */
-  .sidebar {
-    width: 200px;
-    min-width: 200px;
-    background: #f0f4f8;
-    padding: 28px 20px;
-    border-right: 1px solid #dce3ea;
-  }
-
   .sidebar-section {
-    margin-bottom: 24px;
+    margin-bottom: 20px;
   }
 
   .sidebar-section h3 {
-    font-size: 7pt;
-    font-weight: 700;
-    letter-spacing: 1.2px;
+    font-size: 7.5pt;
+    font-weight: bold;
+    letter-spacing: 1px;
     text-transform: uppercase;
     color: #0f3460;
     border-bottom: 2px solid #0f3460;
-    padding-bottom: 4px;
-    margin-bottom: 10px;
+    padding-bottom: 3px;
+    margin-bottom: 8px;
   }
 
   .sidebar-item {
@@ -89,263 +111,264 @@
   }
 
   .sidebar-item .lbl {
-    font-size: 7.5pt;
-    color: #6b7280;
+    font-size: 7pt;
+    color: #64748b;
     text-transform: uppercase;
     letter-spacing: 0.5px;
   }
 
   .sidebar-item .val {
-    font-size: 9pt;
-    font-weight: 600;
+    font-size: 8.5pt;
+    font-weight: bold;
     color: #1a1a2e;
-    word-break: break-word;
   }
 
   /* ── Main content ───────────────────────────────────────────── */
-  .main {
-    flex: 1;
-    padding: 28px 36px;
-  }
-
   .section {
-    margin-bottom: 24px;
+    margin-bottom: 20px;
   }
 
   .section-title {
-    font-size: 8pt;
-    font-weight: 700;
-    letter-spacing: 1.4px;
+    font-size: 8.5pt;
+    font-weight: bold;
+    letter-spacing: 1.2px;
     text-transform: uppercase;
     color: #0f3460;
     border-bottom: 2px solid #0f3460;
-    padding-bottom: 4px;
-    margin-bottom: 12px;
+    padding-bottom: 3px;
+    margin-bottom: 10px;
   }
 
-  .field-row {
-    display: flex;
-    gap: 24px;
-    margin-bottom: 8px;
+  .field-table {
+    width: 100%;
+    margin-bottom: 6px;
   }
 
-  .field {
-    flex: 1;
+  .field-table td {
+    vertical-align: top;
+    padding-right: 16px;
   }
 
   .field .lbl {
-    font-size: 7.5pt;
-    color: #6b7280;
+    font-size: 7pt;
+    color: #64748b;
     text-transform: uppercase;
     letter-spacing: 0.5px;
   }
 
   .field .val {
-    font-size: 10pt;
+    font-size: 9.5pt;
     color: #1a1a2e;
     font-weight: 500;
-    border-bottom: 1px solid #e5e9f0;
+    border-bottom: 1px solid #e2e8f0;
     padding-bottom: 2px;
-    min-height: 18px;
+    min-height: 16px;
   }
 
   .field .val.empty {
-    color: #c0c8d4;
+    color: #cbd5e1;
     font-style: italic;
-    font-weight: 300;
   }
 
-  /* ── Divider ────────────────────────────────────────────────── */
   .divider {
     height: 1px;
-    background: #e5e9f0;
-    margin: 20px 0;
+    background-color: #e2e8f0;
+    margin: 16px 0;
   }
 
   /* ── Footer ─────────────────────────────────────────────────── */
-  .footer {
-    background: #16213e;
-    color: rgba(255,255,255,0.5);
-    font-size: 7.5pt;
-    padding: 10px 40px;
-    display: flex;
-    justify-content: space-between;
-    letter-spacing: 0.4px;
-  }
-
-  /* ── Accent badge ───────────────────────────────────────────── */
-  .state-badge {
-    display: inline-block;
-    background: #1a6b8a;
-    color: #fff;
+  .footer-table {
+    background-color: #16213e;
+    color: #94a3b8;
     font-size: 7pt;
-    font-weight: 700;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    padding: 3px 10px;
-    border-radius: 20px;
-    margin-top: 6px;
+    padding: 8px 32px;
   }
 </style>
 </head>
 <body>
 
 <!-- ═══ HEADER ═══ -->
-<div class="header">
-  <div class="header-left">
-    <div class="name">{{ full_name }}</div>
-    <div class="ref">Applicant Ref: {{ applicant_name }} &nbsp;|&nbsp; CV Ref: {{ cv_name }}</div>
-    <div class="state-badge">{{ applicant_state }}</div>
-  </div>
-  <div class="header-right">
-    {% if nationality %}<div><span class="label">Nationality</span><br>{{ nationality }}</div>{% endif %}
-    {% if gender %}<div><span class="label">Gender</span><br>{{ gender }}</div>{% endif %}
-    <div><span class="label">Generated</span><br>{{ generated_date }}</div>
-  </div>
-</div>
+<table class="header-table">
+  <tr>
+    <td style="width: 65%;">
+      <div class="name">{{ full_name }}</div>
+      <div class="ref">Applicant Ref: {{ applicant_name }} &nbsp;|&nbsp; CV Ref: {{ cv_name }}</div>
+      <div class="state-badge">{{ applicant_state }}</div>
+    </td>
+    <td class="header-right" style="width: 35%;">
+      {% if nationality %}<div><span class="label">Nationality</span><br><strong>{{ nationality }}</strong></div>{% endif %}
+      {% if gender %}<div><span class="label">Gender</span><br><strong>{{ gender }}</strong></div>{% endif %}
+      <div><span class="label">Generated</span><br>{{ generated_date }}</div>
+    </td>
+  </tr>
+</table>
 
 <!-- ═══ BODY ═══ -->
-<div class="body">
+<table class="layout-table">
+  <tr>
+    <!-- ── Sidebar ── -->
+    <td class="sidebar-td">
 
-  <!-- ── Sidebar ── -->
-  <div class="sidebar">
-
-    <div class="sidebar-section">
-      <h3>Contact</h3>
-      {% if email %}
-      <div class="sidebar-item">
-        <div class="lbl">Email</div>
-        <div class="val">{{ email }}</div>
-      </div>
-      {% endif %}
-      {% if phone_number %}
-      <div class="sidebar-item">
-        <div class="lbl">Phone</div>
-        <div class="val">{{ phone_number }}</div>
-      </div>
-      {% endif %}
-      {% if alternate_phone %}
-      <div class="sidebar-item">
-        <div class="lbl">Alt. Phone</div>
-        <div class="val">{{ alternate_phone }}</div>
-      </div>
-      {% endif %}
-    </div>
-
-    {% if address_line_1 or city or country %}
-    <div class="sidebar-section">
-      <h3>Address</h3>
-      {% if address_line_1 %}<div class="sidebar-item"><div class="val">{{ address_line_1 }}</div></div>{% endif %}
-      {% if city or country %}
-      <div class="sidebar-item">
-        <div class="val">{{ [city, country] | select | join(', ') }}</div>
-      </div>
-      {% endif %}
-    </div>
-    {% endif %}
-
-    <div class="sidebar-section">
-      <h3>Identity</h3>
-      {% if passport_number %}
-      <div class="sidebar-item">
-        <div class="lbl">Passport</div>
-        <div class="val">{{ passport_number }}</div>
-      </div>
-      {% endif %}
-      {% if passport_expiry %}
-      <div class="sidebar-item">
-        <div class="lbl">Expiry</div>
-        <div class="val">{{ passport_expiry }}</div>
-      </div>
-      {% endif %}
-      {% if national_id %}
-      <div class="sidebar-item">
-        <div class="lbl">National ID</div>
-        <div class="val">{{ national_id }}</div>
-      </div>
-      {% endif %}
-    </div>
-
-  </div>
-
-  <!-- ── Main ── -->
-  <div class="main">
-
-    <!-- Personal -->
-    <div class="section">
-      <div class="section-title">Personal Information</div>
-      <div class="field-row">
-        <div class="field">
-          <div class="lbl">Date of Birth</div>
-          <div class="val {% if not date_of_birth %}empty{% endif %}">{{ date_of_birth or '—' }}</div>
-        </div>
-        <div class="field">
-          <div class="lbl">Nationality</div>
-          <div class="val {% if not nationality %}empty{% endif %}">{{ nationality or '—' }}</div>
-        </div>
-        <div class="field">
-          <div class="lbl">Gender</div>
-          <div class="val {% if not gender %}empty{% endif %}">{{ gender or '—' }}</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Education -->
-    <div class="section">
-      <div class="section-title">Education</div>
-      <div class="field-row">
-        <div class="field">
-          <div class="lbl">Highest Qualification</div>
-          <div class="val {% if not highest_education %}empty{% endif %}">{{ highest_education or '—' }}</div>
-        </div>
-        <div class="field">
-          <div class="lbl">Institution</div>
-          <div class="val {% if not institution %}empty{% endif %}">{{ institution or '—' }}</div>
-        </div>
-        <div class="field">
-          <div class="lbl">Graduation Year</div>
-          <div class="val {% if not graduation_year %}empty{% endif %}">{{ graduation_year or '—' }}</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Employment -->
-    {% if current_employer or years_of_experience %}
-    <div class="section">
-      <div class="section-title">Employment</div>
-      <div class="field-row">
-        {% if current_employer %}
-        <div class="field">
-          <div class="lbl">Current / Last Employer</div>
-          <div class="val">{{ current_employer }}</div>
+      <div class="sidebar-section">
+        <h3>Contact</h3>
+        {% if email %}
+        <div class="sidebar-item">
+          <div class="lbl">Email</div>
+          <div class="val">{{ email }}</div>
         </div>
         {% endif %}
-        {% if years_of_experience %}
-        <div class="field">
-          <div class="lbl">Years of Experience</div>
-          <div class="val">{{ years_of_experience }}</div>
+        {% if phone_number %}
+        <div class="sidebar-item">
+          <div class="lbl">Phone</div>
+          <div class="val">{{ phone_number }}</div>
+        </div>
+        {% endif %}
+        {% if alternate_phone %}
+        <div class="sidebar-item">
+          <div class="lbl">Alt. Phone</div>
+          <div class="val">{{ alternate_phone }}</div>
         </div>
         {% endif %}
       </div>
-    </div>
-    {% endif %}
 
-    <div class="divider"></div>
+      {% if address_line_1 or city or country %}
+      <div class="sidebar-section">
+        <h3>Address</h3>
+        {% if address_line_1 %}<div class="sidebar-item"><div class="val">{{ address_line_1 }}</div></div>{% endif %}
+        {% if city or country %}
+        <div class="sidebar-item">
+          <div class="val">{{ [city, country] | select | join(', ') }}</div>
+        </div>
+        {% endif %}
+      </div>
+      {% endif %}
 
-    <!-- Internal note -->
-    <div style="font-size:7.5pt; color:#a0aec0; margin-top: 8px;">
-      This CV was system-generated from applicant profile data.
-      Any amendments must be made via the Applicant record.
-    </div>
+      <div class="sidebar-section">
+        <h3>Identity</h3>
+        {% if passport_number %}
+        <div class="sidebar-item">
+          <div class="lbl">Passport</div>
+          <div class="val">{{ passport_number }}</div>
+        </div>
+        {% endif %}
+        {% if passport_expiry %}
+        <div class="sidebar-item">
+          <div class="lbl">Expiry</div>
+          <div class="val">{{ passport_expiry }}</div>
+        </div>
+        {% endif %}
+        {% if national_id %}
+        <div class="sidebar-item">
+          <div class="lbl">National ID</div>
+          <div class="val">{{ national_id }}</div>
+        </div>
+        {% endif %}
+      </div>
 
-  </div>
-</div>
+    </td>
+
+    <!-- ── Main ── -->
+    <td class="main-td">
+
+      <!-- Personal -->
+      <div class="section">
+        <div class="section-title">Personal Information</div>
+        <table class="field-table">
+          <tr>
+            <td style="width: 33%;">
+              <div class="field">
+                <div class="lbl">Date of Birth</div>
+                <div class="val {% if not date_of_birth %}empty{% endif %}">{{ date_of_birth or '—' }}</div>
+              </div>
+            </td>
+            <td style="width: 33%;">
+              <div class="field">
+                <div class="lbl">Nationality</div>
+                <div class="val {% if not nationality %}empty{% endif %}">{{ nationality or '—' }}</div>
+              </div>
+            </td>
+            <td style="width: 34%;">
+              <div class="field">
+                <div class="lbl">Gender</div>
+                <div class="val {% if not gender %}empty{% endif %}">{{ gender or '—' }}</div>
+              </div>
+            </td>
+          </tr>
+        </table>
+      </div>
+
+      <!-- Education -->
+      <div class="section">
+        <div class="section-title">Education</div>
+        <table class="field-table">
+          <tr>
+            <td style="width: 33%;">
+              <div class="field">
+                <div class="lbl">Highest Qualification</div>
+                <div class="val {% if not highest_education %}empty{% endif %}">{{ highest_education or '—' }}</div>
+              </div>
+            </td>
+            <td style="width: 33%;">
+              <div class="field">
+                <div class="lbl">Institution</div>
+                <div class="val {% if not institution %}empty{% endif %}">{{ institution or '—' }}</div>
+              </div>
+            </td>
+            <td style="width: 34%;">
+              <div class="field">
+                <div class="lbl">Graduation Year</div>
+                <div class="val {% if not graduation_year %}empty{% endif %}">{{ graduation_year or '—' }}</div>
+              </div>
+            </td>
+          </tr>
+        </table>
+      </div>
+
+      <!-- Employment -->
+      {% if current_employer or years_of_experience %}
+      <div class="section">
+        <div class="section-title">Employment</div>
+        <table class="field-table">
+          <tr>
+            {% if current_employer %}
+            <td style="width: 50%;">
+              <div class="field">
+                <div class="lbl">Current / Last Employer</div>
+                <div class="val">{{ current_employer }}</div>
+              </div>
+            </td>
+            {% endif %}
+            {% if years_of_experience %}
+            <td style="width: 50%;">
+              <div class="field">
+                <div class="lbl">Years of Experience</div>
+                <div class="val">{{ years_of_experience }}</div>
+              </div>
+            </td>
+            {% endif %}
+          </tr>
+        </table>
+      </div>
+      {% endif %}
+
+      <div class="divider"></div>
+
+      <!-- Internal note -->
+      <div style="font-size:7pt; color:#94a3b8; margin-top: 8px;">
+        This CV was system-generated from applicant profile data. Any amendments must be made via the Applicant record.
+      </div>
+
+    </td>
+  </tr>
+</table>
 
 <!-- ═══ FOOTER ═══ -->
-<div class="footer">
-  <span>CONFIDENTIAL — Internal Use Only</span>
-  <span>{{ applicant_name }} | {{ cv_name }} | Generated: {{ generated_date }}</span>
-</div>
+<table class="footer-table">
+  <tr>
+    <td style="width: 50%;">CONFIDENTIAL — Internal Use Only</td>
+    <td style="width: 50%; text-align: right;">{{ applicant_name }} | {{ cv_name }} | Generated: {{ generated_date }}</td>
+  </tr>
+</table>
 
 </body>
 </html>

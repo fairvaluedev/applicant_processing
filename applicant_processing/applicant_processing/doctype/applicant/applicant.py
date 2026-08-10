@@ -226,7 +226,11 @@ def generate_cv(applicant_name):
         "margin-right": "0mm",
         "encoding": "UTF-8",
         "no-outline": None,
+        "quiet": None,
+        "disable-smart-shrinking": None,
         "enable-local-file-access": None,
+        "load-error-handling": "ignore",
+        "load-media-error-handling": "ignore",
     }
     pdf_bytes = get_pdf(html, options=pdf_options)
 
