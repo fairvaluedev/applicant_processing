@@ -154,7 +154,7 @@ def get_accounting_summary():
         FROM `tabIncome Expense Log` iel
         WHERE iel.parenttype = 'Applicant'
         GROUP BY iel.parent
-        ORDER BY (income + expense) DESC
+        ORDER BY SUM(iel.amount) DESC
         LIMIT 20
     """, as_dict=True)
 
