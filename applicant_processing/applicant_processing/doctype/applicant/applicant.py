@@ -25,6 +25,8 @@ DRAFT_REQUIRED_FIELDS = {
 REGISTRATION_REQUIRED_FIELDS = {
     "date_of_birth": "Date of Birth",
     "passport_number": "Passport Number",
+    "medical_info": "Medical Information",
+    "medical_expiry_date": "Medical Request Expiration Date",
 }
 
 
@@ -127,6 +129,53 @@ class Applicant(Document):
     def on_update(self):
         pass
 
+    def _check_immediate_medical_expiry_alert(self):
+        """Runs an immediate medical expiry check upon registration."""
+        if not self.medical_expiry_date:
+            return
+
+        from frappe.utils import getdate, today, date_diff
+        from applicant_processing.applicant_processing.utils.push_api import notify_user_task
+
+        current_date = getdate(today())
+        expiry_dt = getdate(self.medical_expiry_date)
+        days_left = date_diff(expiry_dt, current_date)
+
+        if days_left <= 16:
+            full_name = f"{self.first_name or ''} {self.last_name or ''}".strip() or self.name
+            subject = f"Registration Alert: Medical Expiring in {days_left} day(s) for {full_name}"
+            message = (
+                f"Applicant {full_name} ({self.name}) was registered today, but their medical request "
+                f"expires on {self.medical_expiry_date} ({days_left} day(s) remaining)."
+            )
+
+            target_users = set()
+            if self.owner: target_users.add(self.owner)
+
+            managers = frappe.get_all("Has Role", filters={"role": "System Manager", "parenttype": "User"}, fields=["parent"])
+            for m in managers:
+                target_users.add(m.parent)
+
+            payload = {
+                "applicant": self.name,
+                "full_name": full_name,
+                "medical_expiry_date": str(self.medical_expiry_date),
+                "days_remaining": days_left,
+                "event": "registered_with_expiring_medical"
+            }
+
+            for user in target_users:
+                notify_user_task(
+                    user=user,
+                    subject=subject,
+                    description=message,
+                    reference_doctype="Applicant",
+                    reference_name=self.name,
+                    event_type="applicant_registered_medical_warning",
+                    payload=payload,
+                    date_val=self.medical_expiry_date
+                )
+
 
 @frappe.whitelist()
 def register_applicant(applicant_name):
@@ -147,6 +196,9 @@ def register_applicant(applicant_name):
     # Mark as Registered
     applicant.applicant_state = "Registered"
     applicant.save(ignore_permissions=True)
+
+    # Check immediate medical expiry alert on registration
+    applicant._check_immediate_medical_expiry_alert()
 
     return f"Applicant {applicant_name} is now Registered."
 

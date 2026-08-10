@@ -23,36 +23,49 @@ frappe.ui.form.on("Applicant Dossier", {
         }
     },
 
-    applicant(frm) {
-        if (!frm.doc.applicant) {
+    contract_request(frm) {
+        if (!frm.doc.contract_request) {
+            frm.set_value("applicant", "");
             frm.set_value("cv_record", "");
-            frm.set_value("contract_request", "");
+            frm.set_value("contract_status", "");
+            frm.set_value("cv_status", "");
+            frm.set_value("contractor_name", "");
+            frm.set_value("first_name", "");
+            frm.set_value("last_name", "");
+            frm.set_value("nationality", "");
+            frm.set_value("passport_number", "");
             return;
         }
 
-        // Auto-fetch latest CV Record
-        frappe.db.get_list("CV Record", {
-            filters: { applicant: frm.doc.applicant },
-            order_by: "creation desc",
-            limit: 1
-        }).then(records => {
-            if (records && records.length > 0) {
-                frm.set_value("cv_record", records[0].name);
-            } else {
-                frm.set_value("cv_record", "");
+        frappe.db.get_value("Contract Request", frm.doc.contract_request, [
+            "applicant", "cv_reference", "status", "contractor"
+        ], function(cr) {
+            if (!cr) return;
+            frm.set_value("applicant", cr.applicant || "");
+            frm.set_value("cv_record", cr.cv_reference || "");
+            frm.set_value("contract_status", cr.status || "");
+            if (cr.contractor) {
+                frm.set_value("contractor_name", cr.contractor);
             }
-        });
 
-        // Auto-fetch latest Contract Request
-        frappe.db.get_list("Contract Request", {
-            filters: { applicant: frm.doc.applicant },
-            order_by: "creation desc",
-            limit: 1
-        }).then(records => {
-            if (records && records.length > 0) {
-                frm.set_value("contract_request", records[0].name);
-            } else {
-                frm.set_value("contract_request", "");
+            if (cr.applicant) {
+                frappe.db.get_value("Applicant", cr.applicant, [
+                    "first_name", "last_name", "nationality", "passport_number"
+                ], function(app) {
+                    if (!app) return;
+                    frm.set_value("first_name", app.first_name || "");
+                    frm.set_value("last_name", app.last_name || "");
+                    frm.set_value("nationality", app.nationality || "");
+                    frm.set_value("passport_number", app.passport_number || "");
+                });
+            }
+
+            if (cr.cv_reference) {
+                frappe.db.get_value("CV Record", cr.cv_reference, "status", function(val) {
+                    if (val) {
+                        frm.set_value("cv_status", val.status || val);
+                    }
+                });
             }
         });
     }

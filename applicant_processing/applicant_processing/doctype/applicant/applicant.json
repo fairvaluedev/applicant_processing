@@ -28,6 +28,9 @@
   "passport_expiry",
   "col_break_id",
   "national_id",
+  "medical_sec",
+  "medical_info",
+  "medical_expiry_date",
   "education_employment_sec",
   "highest_education",
   "institution",
@@ -173,6 +176,21 @@
    "fieldname": "national_id",
    "fieldtype": "Data",
    "label": "National ID Number"
+  },
+  {
+   "fieldname": "medical_sec",
+   "fieldtype": "Section Break",
+   "label": "Medical Information"
+  },
+  {
+   "fieldname": "medical_info",
+   "fieldtype": "Small Text",
+   "label": "Medical Information / Request"
+  },
+  {
+   "fieldname": "medical_expiry_date",
+   "fieldtype": "Date",
+   "label": "Medical Request Expiration Date"
   },
   {
    "fieldname": "education_employment_sec",

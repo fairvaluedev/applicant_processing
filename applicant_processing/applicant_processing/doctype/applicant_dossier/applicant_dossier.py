@@ -7,32 +7,30 @@ from frappe.model.document import Document
 
 class ApplicantDossier(Document):
 	def validate(self):
-		self.auto_fetch_linked_cv_and_contract()
+		self.populate_from_contract_request()
 
-	def auto_fetch_linked_cv_and_contract(self):
-		"""Auto-populates the latest CV Record and Contract Request for the selected Applicant."""
-		if not self.applicant:
-			return
-
-		if not self.cv_record:
-			latest_cv = frappe.db.get_value(
-				"CV Record",
-				{"applicant": self.applicant},
-				"name",
-				order_by="creation desc"
-			)
-			if latest_cv:
-				self.cv_record = latest_cv
-
+	def populate_from_contract_request(self):
+		"""Populates Applicant, CV Record, Contractor, and Statuses from the selected Contract Request."""
 		if not self.contract_request:
-			latest_cr = frappe.db.get_value(
-				"Contract Request",
-				{"applicant": self.applicant},
-				"name",
-				order_by="creation desc"
-			)
-			if latest_cr:
-				self.contract_request = latest_cr
+			frappe.throw("Contract Request is required to create an Applicant Dossier.")
+
+		cr = frappe.get_doc("Contract Request", self.contract_request)
+
+		self.applicant = cr.applicant
+		self.cv_record = cr.cv_reference
+		self.contract_status = cr.status
+		if cr.contractor:
+			self.contractor_name = cr.contractor
+
+		if cr.applicant:
+			app = frappe.get_doc("Applicant", cr.applicant)
+			self.first_name = app.first_name
+			self.last_name = app.last_name
+			self.nationality = app.nationality
+			self.passport_number = app.passport_number
+
+		if cr.cv_reference:
+			self.cv_status = frappe.db.get_value("CV Record", cr.cv_reference, "status")
 
 	def before_submit(self):
 		missing = []
@@ -46,7 +44,7 @@ class ApplicantDossier(Document):
 				"Cannot submit Dossier. Please parse a file or fill in the missing fields: " 
 				+ ", ".join(missing)
 			)
-		
+
 
 @frappe.whitelist()
 def parse_dossier_file(dossier_name):
@@ -61,7 +59,8 @@ def parse_dossier_file(dossier_name):
 	# MOCK PARSER logic
 	dossier.sponsor_name = "Mock Sponsor Ltd."
 	dossier.amount_detail = 5000.00
-	dossier.contractor_name = "Global Recruitment"
+	if not dossier.contractor_name:
+		dossier.contractor_name = "Global Recruitment"
 	dossier.agency = "Main Agency"
 	dossier.is_parsed = 1
 	

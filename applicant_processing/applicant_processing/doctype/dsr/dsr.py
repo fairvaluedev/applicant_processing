@@ -9,22 +9,60 @@ class DSR(Document):
 	def after_insert(self):
 		# Auto-create the 3 clearance pages linked to this DSR
 		try:
-			frappe.get_doc({
+			lms = frappe.get_doc({
 				"doctype": "LMS Clearance",
 				"dsr": self.name
-			}).insert(ignore_permissions=True)
+			})
+			lms.insert(ignore_permissions=True)
 			
-			frappe.get_doc({
+			wak = frappe.get_doc({
 				"doctype": "Wakala Clearance",
 				"dsr": self.name
-			}).insert(ignore_permissions=True)
+			})
+			wak.insert(ignore_permissions=True)
 			
-			frappe.get_doc({
+			inj = frappe.get_doc({
 				"doctype": "Injaz Clearance",
 				"dsr": self.name
-			}).insert(ignore_permissions=True)
+			})
+			inj.insert(ignore_permissions=True)
+
+			# Notify LMS, Wakala, and Injaz officers about new pending task
+			self._notify_clearance_tasks(lms, wak, inj)
 		except Exception as e:
 			frappe.log_error(title=f"Failed to auto-create clearances for DSR {self.name}", message=str(e))
+
+	def _notify_clearance_tasks(self, lms_doc, wak_doc, inj_doc):
+		from applicant_processing.applicant_processing.utils.push_api import notify_user_task, get_clearance_target_users
+
+		full_name = f"{self.first_name or ''} {self.last_name or ''}".strip() or self.name
+
+		clearance_items = [
+			("LMS Clearance", lms_doc, getattr(lms_doc, "employee", None)),
+			("Wakala Clearance", wak_doc, getattr(wak_doc, "employee", None)),
+			("Injaz Clearance", inj_doc, getattr(inj_doc, "employee", None)),
+		]
+
+		for label, doc, employee in clearance_items:
+			target_users = get_clearance_target_users(doc.doctype, employee, self.owner)
+			subject = f"New {label} Task Pending for DSR {self.name}"
+			message = f"A new {label} ({doc.name}) is pending for DSR {self.name} (Applicant: {full_name})."
+
+			for user in target_users:
+				notify_user_task(
+					user=user,
+					subject=subject,
+					description=message,
+					reference_doctype=doc.doctype,
+					reference_name=doc.name,
+					event_type="dsr_clearance_task_created",
+					payload={
+						"dsr": self.name,
+						"clearance_doctype": doc.doctype,
+						"clearance_name": doc.name,
+						"applicant_name": full_name
+					}
+				)
 
 
 def check_clearances_completed(dsr_name):

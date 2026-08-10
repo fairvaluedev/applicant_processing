@@ -7,6 +7,9 @@
  "engine": "InnoDB",
  "is_submittable": 1,
  "field_order": [
+  "contract_sec",
+  "contract_request",
+  "contract_status",
   "applicant",
   "first_name",
   "last_name",
@@ -15,9 +18,6 @@
   "cv_sec",
   "cv_record",
   "cv_status",
-  "contract_sec",
-  "contract_request",
-  "contract_status",
   "file_sec",
   "attached_file",
   "parsed_data_sec",
@@ -31,13 +31,33 @@
  ],
  "fields": [
   {
+   "fieldname": "contract_sec",
+   "fieldtype": "Section Break",
+   "label": "Contract Details"
+  },
+  {
+   "fieldname": "contract_request",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Select Contract Request",
+   "options": "Contract Request",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "contract_request.status",
+   "fieldname": "contract_status",
+   "fieldtype": "Data",
+   "label": "Contract Status",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "contract_request.applicant",
    "fieldname": "applicant",
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Applicant",
    "options": "Applicant",
-   "reqd": 1,
-   "unique": 1
+   "read_only": 1
   },
   {
    "fetch_from": "applicant.first_name",
@@ -73,34 +93,18 @@
    "label": "CV Details"
   },
   {
+   "fetch_from": "contract_request.cv_reference",
    "fieldname": "cv_record",
    "fieldtype": "Link",
    "label": "CV Record",
-   "options": "CV Record"
+   "options": "CV Record",
+   "read_only": 1
   },
   {
    "fetch_from": "cv_record.status",
    "fieldname": "cv_status",
    "fieldtype": "Data",
    "label": "CV Status",
-   "read_only": 1
-  },
-  {
-   "fieldname": "contract_sec",
-   "fieldtype": "Section Break",
-   "label": "Contract Details"
-  },
-  {
-   "fieldname": "contract_request",
-   "fieldtype": "Link",
-   "label": "Contract Request",
-   "options": "Contract Request"
-  },
-  {
-   "fetch_from": "contract_request.status",
-   "fieldname": "contract_status",
-   "fieldtype": "Data",
-   "label": "Contract Status",
    "read_only": 1
   },
   {
@@ -129,6 +133,7 @@
    "label": "Amount Detail"
   },
   {
+   "fetch_from": "contract_request.contractor",
    "fieldname": "contractor_name",
    "fieldtype": "Data",
    "label": "Contractor Name"
@@ -142,8 +147,8 @@
    "default": "0",
    "fieldname": "is_parsed",
    "fieldtype": "Check",
-   "hidden": 1,
-   "label": "Is Parsed"
+   "label": "Is Parsed",
+   "read_only": 1
   },
   {
    "fieldname": "income_expense_logs_sec",
@@ -157,12 +162,13 @@
    "options": "Income Expense Log"
   }
  ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-08 04:16:00.000000",
+ "modified": "2026-08-10 23:22:00.000000",
  "modified_by": "Administrator",
  "module": "Applicant Processing",
  "name": "Applicant Dossier",
- "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [
   {

@@ -14,8 +14,11 @@
   "file_attachment",
   "version",
   "status",
-  "sharing_status",
-  "share_log",
+  "contract_request_sec",
+  "contract_request",
+  "has_contract_request",
+  "col_break_cr",
+  "contract_request_status",
   "applicant_data_sec",
   "first_name",
   "middle_name",
@@ -79,20 +82,40 @@
    "fieldname": "status",
    "fieldtype": "Select",
    "label": "Status",
-   "options": "Draft\nFinal\nShared"
+   "options": "Draft\nFinal"
   },
   {
-   "default": "Not Shared",
-   "fieldname": "sharing_status",
-   "fieldtype": "Select",
-   "label": "Sharing Status",
-   "options": "Not Shared\nPartially Shared\nFully Shared"
+   "fieldname": "contract_request_sec",
+   "fieldtype": "Section Break",
+   "label": "Contract Request Tracking"
   },
   {
-   "fieldname": "share_log",
-   "fieldtype": "Table",
-   "label": "Share Log",
-   "options": "CV Share Log"
+   "fieldname": "contract_request",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Linked Contract Request",
+   "options": "Contract Request",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "has_contract_request",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Contract Request Created?",
+   "read_only": 1
+  },
+  {
+   "fieldname": "col_break_cr",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "contract_request.status",
+   "fieldname": "contract_request_status",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Contract Request Status",
+   "read_only": 1
   },
   {
    "fieldname": "applicant_data_sec",
@@ -133,7 +156,7 @@
    "fieldname": "gender",
    "fieldtype": "Select",
    "label": "Gender",
-   "options": "\nMale\nFemale\nOther",
+   "options": "Male\nFemale\nOther",
    "read_only": 1
   },
   {
@@ -145,13 +168,12 @@
   {
    "fieldname": "contact_sec",
    "fieldtype": "Section Break",
-   "label": "Contact"
+   "label": "Contact Information"
   },
   {
    "fieldname": "email",
    "fieldtype": "Data",
    "label": "Email Address",
-   "options": "Email",
    "read_only": 1
   },
   {
@@ -221,11 +243,10 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-08 00:35:00.000000",
+ "modified": "2026-08-10 23:12:00.000000",
  "modified_by": "Administrator",
  "module": "Applicant Processing",
  "name": "CV Record",
- "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [
   {
@@ -241,8 +262,6 @@
    "write": 1
   }
  ],
- "row_format": "Dynamic",
- "rows_threshold_for_grid_search": 20,
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": []

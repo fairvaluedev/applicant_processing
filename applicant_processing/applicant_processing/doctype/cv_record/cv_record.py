@@ -28,32 +28,3 @@ class CVRecord(Document):
 		applicant = frappe.get_doc("Applicant", self.applicant)
 		for field in APPLICANT_FIELDS:
 			setattr(self, field, getattr(applicant, field, None))
-
-@frappe.whitelist()
-def share_cv(cv_name, contractors, channel):
-	import json
-	if isinstance(contractors, str):
-		contractors = json.loads(contractors)
-		
-	cv = frappe.get_doc("CV Record", cv_name)
-	
-	if cv.status not in ["Final", "Shared"]:
-		frappe.throw("CV must be in Final state before sharing.")
-		
-	added = 0
-	for contractor in contractors:
-		cv.append("share_log", {
-			"contractor": contractor,
-			"channel": channel,
-			"shared_by": frappe.session.user,
-			"shared_date": frappe.utils.now_datetime(),
-			"status": "Sent"
-		})
-		added += 1
-		
-	if added > 0:
-		cv.status = "Shared"
-		cv.sharing_status = "Fully Shared"
-		cv.save(ignore_permissions=True)
-		
-	return f"CV successfully shared with {added} contractor(s) via {channel}."
