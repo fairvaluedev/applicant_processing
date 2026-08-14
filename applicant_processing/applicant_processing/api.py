@@ -260,6 +260,29 @@ def get_accounting_summary():
         LIMIT 25
     """, as_dict=True)
 
+    # Attach Applicant Full Names
+    app_ids = list({
+        r["applicant"] for r in per_applicant if r.get("applicant") and r["applicant"] != "Unlinked / General"
+    } | {
+        r["applicant"] for r in recent if r.get("applicant") and r["applicant"] != "Unlinked"
+    })
+
+    app_name_map = {}
+    if app_ids:
+        app_rows = frappe.get_all(
+            "Applicant",
+            filters={"name": ["in", app_ids]},
+            fields=["name", "full_name", "first_name", "last_name"]
+        )
+        for a in app_rows:
+            app_name_map[a["name"]] = a.get("full_name") or f"{a.get('first_name') or ''} {a.get('last_name') or ''}".strip()
+
+    for r in per_applicant:
+        r["applicant_name"] = app_name_map.get(r.get("applicant")) or r.get("applicant")
+
+    for r in recent:
+        r["applicant_name"] = app_name_map.get(r.get("applicant")) or r.get("applicant")
+
     return {
         "total_income":       total_income,
         "total_expense":      total_expense,
@@ -270,4 +293,93 @@ def get_accounting_summary():
         "per_applicant":      per_applicant,
         "recent_transactions": recent,
     }
+
+
+@frappe.whitelist()
+def sync_all_full_names():
+    """
+    Backfills and synchronizes full_name across all records:
+    Applicant -> CV Record -> Contract Request -> Dossier -> DSR -> Clearances.
+    """
+    updated_counts = {}
+
+    # 1. Applicant
+    applicants = frappe.get_all("Applicant", fields=["name", "first_name", "middle_name", "last_name", "full_name"])
+    app_map = {}
+    app_count = 0
+    for app in applicants:
+        parts = [app.get("first_name"), app.get("middle_name"), app.get("last_name")]
+        fn = " ".join([p.strip() for p in parts if p and p.strip()]).strip()
+        app_map[app.name] = fn
+        if app.get("full_name") != fn:
+            frappe.db.set_value("Applicant", app.name, "full_name", fn, update_modified=False)
+            app_count += 1
+    updated_counts["Applicant"] = app_count
+
+    # 2. CV Record
+    cvs = frappe.get_all("CV Record", fields=["name", "applicant", "full_name", "first_name", "middle_name", "last_name"])
+    cv_count = 0
+    for cv in cvs:
+        fn = app_map.get(cv.get("applicant")) or " ".join([p.strip() for p in [cv.get("first_name"), cv.get("middle_name"), cv.get("last_name")] if p and p.strip()]).strip()
+        if fn and cv.get("full_name") != fn:
+            frappe.db.set_value("CV Record", cv.name, "full_name", fn, update_modified=False)
+            cv_count += 1
+    updated_counts["CV Record"] = cv_count
+
+    # 3. Contract Request
+    crs = frappe.get_all("Contract Request", fields=["name", "applicant", "full_name"])
+    cr_count = 0
+    for cr in crs:
+        fn = app_map.get(cr.get("applicant"))
+        if fn and cr.get("full_name") != fn:
+            frappe.db.set_value("Contract Request", cr.name, "full_name", fn, update_modified=False)
+            cr_count += 1
+    updated_counts["Contract Request"] = cr_count
+
+    # 4. Applicant Dossier
+    dos_map = {}
+    dossiers = frappe.get_all("Applicant Dossier", fields=["name", "applicant", "first_name", "last_name", "full_name"])
+    dos_count = 0
+    for dos in dossiers:
+        fn = app_map.get(dos.get("applicant")) or f"{dos.get('first_name') or ''} {dos.get('last_name') or ''}".strip()
+        dos_map[dos.name] = fn
+        if fn and dos.get("full_name") != fn:
+            frappe.db.set_value("Applicant Dossier", dos.name, "full_name", fn, update_modified=False)
+            dos_count += 1
+    updated_counts["Applicant Dossier"] = dos_count
+
+    # 5. DSR
+    dsr_map = {}
+    dsrs = frappe.get_all("DSR", fields=["name", "applicant_dossier", "first_name", "last_name", "full_name"])
+    dsr_count = 0
+    for dsr in dsrs:
+        fn = dos_map.get(dsr.get("applicant_dossier")) or f"{dsr.get('first_name') or ''} {dsr.get('last_name') or ''}".strip()
+        dsr_map[dsr.name] = fn
+        if fn and dsr.get("full_name") != fn:
+            frappe.db.set_value("DSR", dsr.name, "full_name", fn, update_modified=False)
+            dsr_count += 1
+    updated_counts["DSR"] = dsr_count
+
+    # 6. Clearance DocTypes
+    clearance_doctypes = [
+        "LMS Clearance", "Wakala Clearance", "Injaz Clearance",
+        "DSR Stamp", "DSR Ticket", "DSR Departure"
+    ]
+    for dt in clearance_doctypes:
+        records = frappe.get_all(dt, fields=["name", "dsr", "first_name", "last_name", "full_name"])
+        dt_count = 0
+        for rec in records:
+            fn = dsr_map.get(rec.get("dsr")) or f"{rec.get('first_name') or ''} {rec.get('last_name') or ''}".strip()
+            if fn and rec.get("full_name") != fn:
+                frappe.db.set_value(dt, rec.name, "full_name", fn, update_modified=False)
+                dt_count += 1
+        updated_counts[dt] = dt_count
+
+    frappe.db.commit()
+    return {
+        "status": "success",
+        "message": "Full names synchronized across all records successfully.",
+        "updated": updated_counts
+    }
+
 

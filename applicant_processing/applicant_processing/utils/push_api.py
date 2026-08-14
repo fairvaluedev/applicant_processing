@@ -1,13 +1,16 @@
 import frappe
+import os
 import requests
 from frappe.utils import today, date_diff, add_days, getdate, now_datetime
 
 
-def send_notification(event_type, data):
-	"""Dispatches HTTP POST webhook payload if Notification Config is enabled."""
+def _dispatch_webhook(event_type, data):
+	"""Internal worker that sends the HTTP POST webhook."""
 	try:
 		config = frappe.get_single("Notification Config")
 		if not config.enabled or not config.push_api_url:
+			return
+		if "example.com" in config.push_api_url:
 			return
 
 		headers = {}
@@ -20,10 +23,155 @@ def send_notification(event_type, data):
 			"timestamp": now_datetime().isoformat()
 		}
 
-		response = requests.post(config.push_api_url, json=payload, headers=headers, timeout=5)
+		response = requests.post(config.push_api_url, json=payload, headers=headers, timeout=3)
 		response.raise_for_status()
 	except Exception as e:
 		frappe.log_error(title=f"Push API Failed: {event_type}", message=str(e))
+
+
+def send_notification(event_type, data):
+	"""Dispatches HTTP POST webhook payload asynchronously so desk UI never freezes."""
+	try:
+		config = frappe.get_single("Notification Config")
+		if not config.enabled or not config.push_api_url or "example.com" in config.push_api_url:
+			return
+
+		# Enqueue asynchronously in background
+		frappe.enqueue(
+			"applicant_processing.applicant_processing.utils.push_api._dispatch_webhook",
+			queue="short",
+			event_type=event_type,
+			data=data,
+			now=frappe.flags.in_test
+		)
+	except Exception:
+		pass
+
+
+
+def upload_media_to_whatsapp(file_path, token, phone_number_id):
+	"""Uploads a local PDF file to Meta WhatsApp Media API and returns media_id."""
+	try:
+		if not file_path or not os.path.exists(file_path):
+			return None
+		
+		url = f"https://graph.facebook.com/v20.0/{phone_number_id}/media"
+		headers = {
+			"Authorization": f"Bearer {token}"
+		}
+		
+		with open(file_path, "rb") as f:
+			files = {
+				"file": (os.path.basename(file_path), f, "application/pdf"),
+				"messaging_product": (None, "whatsapp"),
+				"type": (None, "document")
+			}
+			res = requests.post(url, headers=headers, files=files, timeout=30)
+			if res.status_code == 200:
+				return res.json().get("id")
+			else:
+				frappe.log_error(title="Meta Media Upload Error", message=res.text)
+	except Exception as e:
+		frappe.log_error(title="Upload Media to WhatsApp Failed", message=str(e))
+	return None
+
+
+def send_whatsapp_cloud_api(recipient_phone, message_text, media_url=None, local_file_path=None, filename=None, template_name="hello_world"):
+	"""
+	Dispatches a direct WhatsApp Cloud API message using Meta's Graph API.
+	Uploads local PDF files directly via Meta Media API or sends public media URLs (type: 'document').
+	"""
+	try:
+		config = frappe.get_single("Notification Config")
+		if hasattr(config, "whatsapp_enabled") and not config.whatsapp_enabled:
+			return False, "WhatsApp API is disabled in Notification Config."
+
+		token = getattr(config, "whatsapp_access_token", None) or frappe.conf.get("whatsapp_access_token")
+		phone_number_id = getattr(config, "whatsapp_phone_number_id", None) or frappe.conf.get("whatsapp_phone_number_id")
+
+		if not token or not phone_number_id:
+			return False, "WhatsApp Access Token and Phone Number ID must be configured in Notification Config."
+
+		clean_phone = "".join(filter(str.isdigit, str(recipient_phone)))
+		if not clean_phone:
+			return False, "Recipient phone number is invalid."
+
+		url = f"https://graph.facebook.com/v20.0/{phone_number_id}/messages"
+		headers = {
+			"Authorization": f"Bearer {token}",
+			"Content-Type": "application/json"
+		}
+
+		# 1. Upload local PDF binary to Meta Media API if local_file_path is provided
+		media_id = None
+		if local_file_path and os.path.exists(local_file_path):
+			media_id = upload_media_to_whatsapp(local_file_path, token, phone_number_id)
+
+		# 2. Dispatch PDF Document file directly into WhatsApp chat thread
+		if media_id:
+			payload_doc = {
+				"messaging_product": "whatsapp",
+				"recipient_type": "individual",
+				"to": clean_phone,
+				"type": "document",
+				"document": {
+					"id": media_id,
+					"caption": message_text,
+					"filename": filename or "Applicant_CV.pdf"
+				}
+			}
+			res_doc = requests.post(url, json=payload_doc, headers=headers, timeout=15)
+			res_doc_data = res_doc.json()
+
+			if res_doc.status_code == 200 and "messages" in res_doc_data:
+				msg_id = res_doc_data["messages"][0].get("id")
+				return True, f"PDF Document sent successfully via Meta WhatsApp API (ID: {msg_id})"
+
+		elif media_url and media_url.startswith("http") and "localhost" not in media_url:
+			payload_doc = {
+				"messaging_product": "whatsapp",
+				"recipient_type": "individual",
+				"to": clean_phone,
+				"type": "document",
+				"document": {
+					"link": media_url,
+					"caption": message_text,
+					"filename": filename or "Applicant_CV.pdf"
+				}
+			}
+			res_doc = requests.post(url, json=payload_doc, headers=headers, timeout=15)
+			res_doc_data = res_doc.json()
+
+			if res_doc.status_code == 200 and "messages" in res_doc_data:
+				msg_id = res_doc_data["messages"][0].get("id")
+				return True, f"PDF Document sent successfully via Meta WhatsApp API (ID: {msg_id})"
+
+		# Fallback: Send direct text message if no document binary available
+		payload_text = {
+			"messaging_product": "whatsapp",
+			"recipient_type": "individual",
+			"to": clean_phone,
+			"type": "text",
+			"text": {
+				"preview_url": False,
+				"body": message_text
+			}
+		}
+		res_txt = requests.post(url, json=payload_text, headers=headers, timeout=15)
+		res_txt_data = res_txt.json()
+
+		if res_txt.status_code == 200 and "messages" in res_txt_data:
+			msg_id = res_txt_data["messages"][0].get("id")
+			return True, f"WhatsApp Message Sent (ID: {msg_id})"
+
+		error_msg = res_txt_data.get("error", {}).get("message") or res_txt.text
+		frappe.log_error(title="WhatsApp API Send Failed", message=f"Phone: {clean_phone}\nError: {error_msg}")
+		return False, f"Meta API Error: {error_msg}"
+
+	except Exception as e:
+		err_str = str(e)
+		frappe.log_error(title="WhatsApp Cloud API Exception", message=err_str)
+		return False, f"Connection Error: {err_str}"
 
 
 def get_clearance_target_users(clearance_doctype, assigned_employee=None, owner=None):

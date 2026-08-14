@@ -6,6 +6,13 @@ from frappe.model.document import Document
 
 
 class DSR(Document):
+	def validate(self):
+		if self.applicant_dossier:
+			dossier = frappe.get_doc("Applicant Dossier", self.applicant_dossier)
+			self.full_name = getattr(dossier, "full_name", None) or f"{dossier.first_name or ''} {dossier.last_name or ''}".strip()
+		elif not self.full_name:
+			self.full_name = f"{self.first_name or ''} {self.last_name or ''}".strip()
+
 	def after_insert(self):
 		# Auto-create the 3 clearance pages linked to this DSR
 		try:
@@ -29,8 +36,25 @@ class DSR(Document):
 
 			# Notify LMS, Wakala, and Injaz officers about new pending task
 			self._notify_clearance_tasks(lms, wak, inj)
+
+			# Recalculate linked applicant state
+			self._recalculate_applicant()
 		except Exception as e:
 			frappe.log_error(title=f"Failed to auto-create clearances for DSR {self.name}", message=str(e))
+
+	def on_update(self):
+		self._recalculate_applicant()
+
+	def on_trash(self):
+		self._recalculate_applicant()
+
+	def _recalculate_applicant(self):
+		applicant = getattr(self, "applicant", None)
+		if not applicant and self.applicant_dossier:
+			applicant = frappe.db.get_value("Applicant Dossier", self.applicant_dossier, "applicant")
+		if applicant:
+			from applicant_processing.applicant_processing.doctype.applicant.applicant import recalculate_applicant_state
+			recalculate_applicant_state(applicant)
 
 	def _notify_clearance_tasks(self, lms_doc, wak_doc, inj_doc):
 		from applicant_processing.applicant_processing.utils.push_api import notify_user_task, get_clearance_target_users

@@ -7,7 +7,11 @@
   "enabled",
   "push_api_url",
   "push_api_key",
-  "reminder_check_interval"
+  "reminder_check_interval",
+  "whatsapp_sec",
+  "whatsapp_enabled",
+  "whatsapp_phone_number_id",
+  "whatsapp_access_token"
  ],
  "fields": [
   {
@@ -33,6 +37,27 @@
    "fieldtype": "Select",
    "label": "Reminder Check Interval",
    "options": "Every Hour\nEvery 4 Hours\nDaily"
+  },
+  {
+   "fieldname": "whatsapp_sec",
+   "fieldtype": "Section Break",
+   "label": "WhatsApp Business API Settings"
+  },
+  {
+   "default": "1",
+   "fieldname": "whatsapp_enabled",
+   "fieldtype": "Check",
+   "label": "Enable Meta WhatsApp API"
+  },
+  {
+   "fieldname": "whatsapp_phone_number_id",
+   "fieldtype": "Data",
+   "label": "WhatsApp Phone Number ID"
+  },
+  {
+   "fieldname": "whatsapp_access_token",
+   "fieldtype": "Small Text",
+   "label": "WhatsApp Access Token"
   }
  ],
  "issingle": 1,

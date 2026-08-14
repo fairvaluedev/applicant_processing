@@ -11,6 +11,7 @@
   "contract_request",
   "contract_status",
   "applicant",
+  "full_name",
   "first_name",
   "last_name",
   "nationality",
@@ -57,6 +58,16 @@
    "in_list_view": 1,
    "label": "Applicant",
    "options": "Applicant",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "applicant.full_name",
+   "fieldname": "full_name",
+   "fieldtype": "Data",
+   "in_global_search": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Applicant Name",
    "read_only": 1
   },
   {
@@ -185,7 +196,10 @@
    "write": 1
   }
  ],
+ "search_fields": "applicant,full_name,passport_number,contract_request",
+ "show_title_field_in_link": 1,
  "sort_field": "modified",
  "sort_order": "DESC",
- "states": []
+ "states": [],
+ "title_field": "full_name"
 }

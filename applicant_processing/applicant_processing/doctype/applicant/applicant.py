@@ -4,13 +4,17 @@
 import frappe
 from frappe.model.document import Document
 
-# Canonical state order for easier comparison
+# Canonical state order for easier comparison and progress tracking
 STATE_ORDER = [
     "Draft",
     "Registered",
     "CV Generated",
-    "Contract Requested",
-    "Dossier Submitted",
+    "Request Pending",
+    "Selected",
+    "Processing",
+    "Stamped",
+    "Ticketed",
+    "Departed",
 ]
 
 # Required to save an Applicant (Draft state floor)
@@ -19,28 +23,117 @@ DRAFT_REQUIRED_FIELDS = {
     "last_name": "Last Name",
     "phone_number": "Phone Number",
     "nationality": "Nationality",
+    "gender": "Gender",
+    "religion": "Religion",
+    "marital_status": "Marital Status",
+    "children": "Children (Count)",
 }
 
 # Required to move from Draft to Registered
 REGISTRATION_REQUIRED_FIELDS = {
     "date_of_birth": "Date of Birth",
     "passport_number": "Passport Number",
-    "medical_info": "Medical Information",
+    "highest_education": "Highest Education Level",
+    "labour_id": "Labour ID",
+    "contact_person_name": "Contact Person Name",
+    "contact_person_phone": "Contact Person Phone",
+    "coc_status": "COC Status",
+    "exam_date": "Exam Date",
+    "medical_status": "Medical Status",
     "medical_expiry_date": "Medical Request Expiration Date",
 }
 
 
 class Applicant(Document):
     def validate(self):
-        # 1. Mandatory data to go to draft state (always required)
+        # 1. Set full name
+        self._set_full_name()
+        # 2. Mandatory data to go to draft state (always required)
         self._check_missing(DRAFT_REQUIRED_FIELDS)
-        # 2. Sync fee rows to income/expense log on each save
-        self._sync_income_expense_logs()
-        # 3. Recompute financial totals
+        # 3. Calculate computed fields (Exam remaining days, Medical remaining days)
+        self._calculate_computed_days()
+        # 4. Calculate lifecycle step and progress percentage
+        self._calculate_state_progress()
+        # 5. Record cancelling user and timestamp if cancelled
+        if self.applicant_state == "Cancelled":
+            if not self.cancelled_by:
+                self.cancelled_by = frappe.session.user
+            if not self.cancelled_at:
+                self.cancelled_at = frappe.utils.now_datetime()
+        # 6. Flexible data hygiene & formatting
+        self._validate_pragmatic_data()
+        # 7. Recompute financial totals directly from income_expense_logs
         self._recalculate_totals()
 
+    def _set_full_name(self):
+        parts = [self.first_name, self.middle_name, self.last_name]
+        self.full_name = " ".join([p.strip() for p in parts if p and p.strip()]).strip()
+
+    def _calculate_computed_days(self):
+        """Computes remaining days for COC Exam and Medical validity."""
+        from frappe.utils import getdate, today, date_diff
+
+        curr_today = getdate(today())
+
+        if self.exam_date:
+            self.exam_remaining_days = date_diff(getdate(self.exam_date), curr_today)
+        else:
+            self.exam_remaining_days = None
+
+        if self.medical_expiry_date:
+            self.medical_remaining_days = date_diff(getdate(self.medical_expiry_date), curr_today)
+        else:
+            self.medical_remaining_days = None
+
+    def _calculate_state_progress(self):
+        """Computes lifecycle step and percentage for frontend dashboards and progress bars."""
+        if self.applicant_state == "Cancelled":
+            self.state_step = "Cancelled"
+            self.state_progress = 0.0
+            return
+
+        if self.applicant_state in STATE_ORDER:
+            idx = STATE_ORDER.index(self.applicant_state)
+            total = len(STATE_ORDER)
+            self.state_step = f"{idx + 1} of {total}"
+            self.state_progress = round(((idx + 1) / total) * 100.0, 1)
+        else:
+            self.state_step = "Unknown"
+            self.state_progress = 0.0
+
+    def _validate_pragmatic_data(self):
+        """Pragmatic data hygiene and field formatting checks."""
+        from frappe.utils import getdate, today
+
+        curr_today = getdate(today())
+
+        # 1. Date of Birth cannot be in the future
+        if self.date_of_birth and getdate(self.date_of_birth) > curr_today:
+            frappe.throw("Date of Birth cannot be in the future.")
+
+        # 2. Passport Expiry Warning (Non-blocking)
+        if self.passport_expiry and getdate(self.passport_expiry) < curr_today:
+            frappe.msgprint("Note: Passport Expiry Date is in the past.", indicator="orange")
+
+        # 3. Medical Expiry Warning (Non-blocking)
+        if self.medical_expiry_date and getdate(self.medical_expiry_date) < curr_today:
+            frappe.msgprint("Note: Medical Request Expiration Date is in the past.", indicator="orange")
+
+        # 4. Passport formatting
+        if self.passport_number:
+            self.passport_number = self.passport_number.upper().strip()
+
+        # 5. Email formatting validation
+        if self.email:
+            self.email = self.email.strip()
+            frappe.utils.validate_email_address(self.email, throw=True)
+
     def _check_missing(self, field_map):
-        missing = [label for field, label in field_map.items() if not self.get(field)]
+        missing = []
+        for field, label in field_map.items():
+            val = self.get(field)
+            if val is None or val == "":
+                missing.append(label)
         if missing:
             frappe.throw("Missing required field(s): " + ", ".join(missing))
 
@@ -50,66 +143,6 @@ class Applicant(Document):
         if self.applicant_state not in STATE_ORDER:
             return False
         return STATE_ORDER.index(self.applicant_state) >= STATE_ORDER.index(target_state)
-
-    def _sync_income_expense_logs(self):
-        """
-        Keeps the Income Expense Log child table in sync with the Fees table.
-
-        Strategy (Option B — log immediately on row creation):
-        - Every fee row produces exactly one auto-generated log entry
-          (identified by source_fee_row == fee row name).
-        - On save we compare the current fee rows against existing auto entries:
-            * New fee rows → append a new log entry.
-            * Modified fee rows (amount/direction/type) → update the existing log entry.
-            * Deleted fee rows → remove the orphaned log entry.
-        - Manual entries (source_doctype == "Manual" or source_fee_row is blank)
-          are never touched.
-        """
-        import frappe.utils
-
-        # Build a dict of current fee rows keyed by their child-table row name.
-        # New (unsaved) rows will have a blank name; we handle those below.
-        current_fees = {}
-        for fee in (self.fees or []):
-            if fee.name:
-                current_fees[fee.name] = fee
-
-        # Build a dict of existing AUTO log entries keyed by source_fee_row
-        auto_logs = {}
-        for log in (self.income_expense_logs or []):
-            if log.source_fee_row:
-                auto_logs[log.source_fee_row] = log
-
-        # ── 1. Update or create entries for every current fee row ──
-        for fee_row_name, fee in current_fees.items():
-            description = f"{fee.fee_type} – auto"
-            date_val = fee.payment_date or frappe.utils.today()
-            txn_type = fee.direction  # "Income" or "Expense"
-
-            if fee_row_name in auto_logs:
-                # Update existing log entry if anything changed
-                log = auto_logs[fee_row_name]
-                log.transaction_type = txn_type
-                log.amount = fee.amount or 0
-                log.date = date_val
-                log.description = description
-                log.source_doctype = "Applicant Fee"
-            else:
-                # Append a new auto log entry
-                self.append("income_expense_logs", {
-                    "transaction_type": txn_type,
-                    "amount": fee.amount or 0,
-                    "date": date_val,
-                    "description": description,
-                    "source_doctype": "Applicant Fee",
-                    "source_fee_row": fee_row_name,
-                })
-
-        # ── 2. Remove log entries whose fee row no longer exists ──
-        self.income_expense_logs = [
-            log for log in (self.income_expense_logs or [])
-            if not log.source_fee_row or log.source_fee_row in current_fees
-        ]
 
     def _recalculate_totals(self):
         """Sums Income Expense Log rows to compute total_income, total_expense, net_balance."""
@@ -192,6 +225,9 @@ def register_applicant(applicant_name):
 
     # Check for Registration required fields
     applicant._check_missing(REGISTRATION_REQUIRED_FIELDS)
+
+    if applicant.medical_status == "UNFIT":
+        frappe.throw("Cannot register applicant: Medical Status is marked as 'UNFIT'.")
 
     # Mark as Registered
     applicant.applicant_state = "Registered"
@@ -284,6 +320,9 @@ def generate_cv(applicant_name):
         "load-error-handling": "ignore",
         "load-media-error-handling": "ignore",
     }
+    if not getattr(frappe.local, "assets_json", None):
+        frappe.local.assets_json = {}
+
     pdf_bytes = get_pdf(html, options=pdf_options)
 
     # Create CV Record
@@ -318,3 +357,127 @@ def generate_cv(applicant_name):
         "file_url":  saved_file.file_url,
         "message":   f"CV generated successfully: {cv_record.name}",
     }
+
+
+@frappe.whitelist()
+def cancel_applicant(applicant_name, cancel_remarks=None):
+    """
+    Cancels the applicant process and records optional remarks, timestamp, and cancelling user.
+    Blocking condition: applicant cannot be cancelled if already Departed.
+    """
+    applicant = frappe.get_doc("Applicant", applicant_name)
+
+    if applicant.applicant_state == "Departed":
+        frappe.throw("Cannot cancel applicant process: Applicant has already Departed.")
+    if applicant.applicant_state == "Cancelled":
+        frappe.throw("Applicant process is already Cancelled.")
+
+    applicant.applicant_state = "Cancelled"
+    applicant.cancel_remarks = (cancel_remarks or "").strip()
+    applicant.cancelled_at = frappe.utils.now_datetime()
+    applicant.cancelled_by = frappe.session.user
+    applicant.save(ignore_permissions=True)
+
+    return f"Applicant {applicant_name} process has been Cancelled."
+
+
+@frappe.whitelist()
+def restore_applicant(applicant_name):
+    """
+    Restores a cancelled applicant back to their active lifecycle stage.
+    """
+    applicant = frappe.get_doc("Applicant", applicant_name)
+    if applicant.applicant_state != "Cancelled":
+        frappe.throw("Applicant is not in Cancelled state.")
+
+    # Reset cancellation audit fields
+    applicant.applicant_state = "Registered"  # Temporary baseline for recalculation
+    applicant.cancel_remarks = None
+    applicant.cancelled_at = None
+    applicant.cancelled_by = None
+    applicant.save(ignore_permissions=True)
+
+    # Automatically compute true stage from downstream documents
+    new_state = recalculate_applicant_state(applicant_name)
+    return f"Applicant {applicant_name} restored to state '{new_state}'."
+
+
+@frappe.whitelist()
+def recalculate_applicant_state(applicant_name):
+    """
+    Computes the true lifecycle state for an Applicant by inspecting all linked
+    downstream documents (Departures, Tickets, Stamps, Clearances, Dossiers, CRs, CVs).
+    Supports two-way/reverting state transitions if a record is updated, cancelled, or deleted.
+    """
+    if not applicant_name or not frappe.db.exists("Applicant", applicant_name):
+        return None
+
+    app = frappe.get_doc("Applicant", applicant_name)
+
+    # If applicant was explicitly Cancelled, preserve Cancelled state unless restored
+    if app.applicant_state == "Cancelled":
+        return "Cancelled"
+
+    # Find linked dossiers for this applicant
+    dossier_names = frappe.get_all("Applicant Dossier", filters={"applicant": applicant_name}, pluck="name")
+    dsr_names = []
+    if dossier_names:
+        dsr_names = frappe.get_all("DSR", filters={"applicant_dossier": ["in", dossier_names]}, pluck="name")
+
+    target_state = "Draft"
+
+    # 1. Check Departed (Step 9)
+    if dsr_names and frappe.db.exists("DSR Departure", {"dsr": ["in", dsr_names], "status": ["in", ["Departed", "Completed"]]}):
+        target_state = "Departed"
+
+    # 2. Check Ticketed (Step 8)
+    elif dsr_names and frappe.db.exists("DSR Ticket", {"dsr": ["in", dsr_names], "status": ["in", ["Booked", "Completed", "Issued", "Approved"]]}):
+        target_state = "Ticketed"
+
+    # 3. Check Stamped (Step 7)
+    elif dsr_names and frappe.db.exists("DSR Stamp", {"dsr": ["in", dsr_names], "status": ["in", ["Completed", "Approved"]]}):
+        target_state = "Stamped"
+
+    # 4. Check Processing (Step 6) - when employees are assigned to LMS/Wakala/Injaz clearances or clearances are underway/completed
+    elif dsr_names and (
+        frappe.db.sql("""
+            SELECT name FROM `tabLMS Clearance` WHERE dsr IN %(dsrs)s AND employee IS NOT NULL AND employee != ''
+            UNION
+            SELECT name FROM `tabWakala Clearance` WHERE dsr IN %(dsrs)s AND employee IS NOT NULL AND employee != ''
+            UNION
+            SELECT name FROM `tabInjaz Clearance` WHERE dsr IN %(dsrs)s AND employee IS NOT NULL AND employee != ''
+            UNION
+            SELECT name FROM `tabLMS Clearance` WHERE dsr IN %(dsrs)s AND status IN ('In Progress', 'Completed')
+            UNION
+            SELECT name FROM `tabWakala Clearance` WHERE dsr IN %(dsrs)s AND status IN ('In Progress', 'Completed')
+            UNION
+            SELECT name FROM `tabInjaz Clearance` WHERE dsr IN %(dsrs)s AND status IN ('In Progress', 'Completed')
+        """, {"dsrs": dsr_names})
+    ):
+        target_state = "Processing"
+
+    # 5. Check Selected (Step 5) - when Dossier exists/parsed or Contract Request is Accepted
+    elif dossier_names or frappe.db.exists("Contract Request", {"applicant": applicant_name, "status": "Accepted"}):
+        target_state = "Selected"
+
+    # 6. Check Request Pending (Step 4) - when Contract Request is Sent
+    elif frappe.db.exists("Contract Request", {"applicant": applicant_name, "status": "Sent"}):
+        target_state = "Request Pending"
+
+    # 7. Check CV Generated (Step 3) - when CV Record exists
+    elif frappe.db.exists("CV Record", {"applicant": applicant_name}):
+        target_state = "CV Generated"
+
+    # 8. Check Registered (Step 2)
+    elif app.applicant_state != "Draft":
+        target_state = "Registered"
+
+    # 9. Draft (Step 1)
+    else:
+        target_state = "Draft"
+
+    if app.applicant_state != target_state:
+        app.applicant_state = target_state
+        app.save(ignore_permissions=True)
+
+    return target_state

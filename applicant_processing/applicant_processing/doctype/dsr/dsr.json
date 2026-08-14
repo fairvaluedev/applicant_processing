@@ -7,6 +7,7 @@
  "engine": "InnoDB",
  "field_order": [
   "applicant_dossier",
+  "full_name",
   "dossier_data_sec",
   "first_name",
   "last_name",
@@ -34,6 +35,16 @@
    "options": "Applicant Dossier",
    "reqd": 1,
    "unique": 1
+  },
+  {
+   "fetch_from": "applicant_dossier.full_name",
+   "fieldname": "full_name",
+   "fieldtype": "Data",
+   "in_global_search": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Applicant Name",
+   "read_only": 1
   },
   {
    "fieldname": "dossier_data_sec",
@@ -160,7 +171,10 @@
    "write": 1
   }
  ],
+ "search_fields": "applicant_dossier,full_name,passport_number",
+ "show_title_field_in_link": 1,
  "sort_field": "modified",
  "sort_order": "DESC",
- "states": []
+ "states": [],
+ "title_field": "full_name"
 }

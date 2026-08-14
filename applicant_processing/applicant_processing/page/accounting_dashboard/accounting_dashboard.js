@@ -111,13 +111,19 @@ function render_dashboard(data) {
 	// ── Per-Applicant Table ────────────────────────────────────────
 	const applicant_rows = (data.per_applicant || [])
 		.map(
-			(row) =>
-				`<tr>
-				<td><a href="/app/applicant/${row.applicant}">${row.applicant}</a></td>
+			(row) => {
+				const is_linked = row.applicant && row.applicant !== "Unlinked / General";
+				const name_html = is_linked
+					? `<a href="/app/applicant/${encodeURIComponent(row.applicant)}" class="font-weight-bold">${frappe.utils.escape_html(row.applicant_name || row.applicant)}</a> <span class="text-muted small">(${frappe.utils.escape_html(row.applicant)})</span>`
+					: `<span class="text-muted">${frappe.utils.escape_html(row.applicant)}</span>`;
+
+				return `<tr>
+				<td>${name_html}</td>
 				<td class="text-right income-text">${fmt_currency(row.income)}</td>
 				<td class="text-right expense-text">${fmt_currency(row.expense)}</td>
 				<td class="text-right ${row.net >= 0 ? "income-text" : "expense-text"}">${fmt_currency(row.net)}</td>
-			</tr>`
+			</tr>`;
+			}
 		)
 		.join("");
 
@@ -127,7 +133,7 @@ function render_dashboard(data) {
 		<h5 class="acc-section-title">Top Applicants by Financial Activity</h5>
 		<table class="acc-table">
 			<thead><tr>
-				<th>Applicant</th>
+				<th>Applicant (Full Name & ID)</th>
 				<th class="text-right">Income</th>
 				<th class="text-right">Expense</th>
 				<th class="text-right">Net</th>
@@ -140,10 +146,15 @@ function render_dashboard(data) {
 	// ── Recent Transactions ────────────────────────────────────────
 	const recent_rows = (data.recent_transactions || [])
 		.map(
-			(txn) =>
-				`<tr>
+			(txn) => {
+				const is_linked = txn.applicant && txn.applicant !== "Unlinked";
+				const app_display = is_linked
+					? `<a href="/app/applicant/${encodeURIComponent(txn.applicant)}"><strong>${frappe.utils.escape_html(txn.applicant_name || txn.applicant)}</strong></a> <div class="text-muted small">${frappe.utils.escape_html(txn.applicant)}</div>`
+					: `<span class="text-muted">${frappe.utils.escape_html(txn.applicant)}</span>`;
+
+				return `<tr>
 				<td>${txn.date || ""}</td>
-				<td><a href="/app/applicant/${txn.applicant}">${txn.applicant}</a></td>
+				<td>${app_display}</td>
 				<td><span class="acc-stage-badge">${txn.stage || "Applicant"}</span></td>
 				<td>
 					<span class="acc-badge ${txn.transaction_type === "Income" ? "badge-income" : "badge-expense"}">
@@ -151,9 +162,10 @@ function render_dashboard(data) {
 					</span>
 				</td>
 				<td class="text-right">${fmt_currency(txn.amount)}</td>
-				<td>${txn.description || ""}</td>
-				<td class="text-muted small">${txn.source_doctype || "Manual"}</td>
-			</tr>`
+				<td>${frappe.utils.escape_html(txn.description || "")}</td>
+				<td class="text-muted small">${frappe.utils.escape_html(txn.source_doctype || "Manual")}</td>
+			</tr>`;
+			}
 		)
 		.join("");
 
@@ -164,7 +176,7 @@ function render_dashboard(data) {
 		<table class="acc-table">
 			<thead><tr>
 				<th>Date</th>
-				<th>Applicant</th>
+				<th>Applicant (Full Name & ID)</th>
 				<th>Stage</th>
 				<th>Type</th>
 				<th class="text-right">Amount</th>

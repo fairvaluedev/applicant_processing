@@ -6,7 +6,7 @@ from frappe.model.document import Document
 
 # Fields to mirror from Applicant
 APPLICANT_FIELDS = [
-	"first_name", "middle_name", "last_name",
+	"first_name", "middle_name", "last_name", "full_name",
 	"date_of_birth", "gender", "nationality",
 	"email", "phone_number",
 	"passport_number", "passport_expiry", "national_id",
@@ -16,6 +16,9 @@ APPLICANT_FIELDS = [
 
 class CVRecord(Document):
 	def before_insert(self):
+		self._populate_from_applicant()
+
+	def validate(self):
 		self._populate_from_applicant()
 
 	def on_update(self):
@@ -28,3 +31,6 @@ class CVRecord(Document):
 		applicant = frappe.get_doc("Applicant", self.applicant)
 		for field in APPLICANT_FIELDS:
 			setattr(self, field, getattr(applicant, field, None))
+		if not self.full_name:
+			parts = [self.first_name, self.middle_name, self.last_name]
+			self.full_name = " ".join([p.strip() for p in parts if p and p.strip()]).strip()

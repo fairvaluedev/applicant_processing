@@ -9,6 +9,7 @@
   "dsr",
   "applicant_dossier",
   "applicant_data_sec",
+  "full_name",
   "first_name",
   "last_name",
   "passport_number",
@@ -39,6 +40,16 @@
    "fieldname": "applicant_data_sec",
    "fieldtype": "Section Break",
    "label": "Applicant Data"
+  },
+  {
+   "fetch_from": "dsr.full_name",
+   "fieldname": "full_name",
+   "fieldtype": "Data",
+   "in_global_search": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Applicant Name",
+   "read_only": 1
   },
   {
    "fetch_from": "dsr.first_name",
@@ -108,7 +119,10 @@
    "write": 1
   }
  ],
+ "search_fields": "dsr,full_name,passport_number",
+ "show_title_field_in_link": 1,
  "sort_field": "modified",
  "sort_order": "DESC",
- "states": []
+ "states": [],
+ "title_field": "full_name"
 }

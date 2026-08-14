@@ -26,8 +26,39 @@ frappe.ui.form.on("Contract Request", {
                             freeze: true,
                             freeze_message: "Sending Contract Request...",
                             callback: function (r) {
-                                if (!r.exc) {
-                                    frappe.show_alert({ message: r.message, indicator: 'green' });
+                                if (!r.exc && r.message) {
+                                    let res = r.message;
+                                    let msgText = typeof res === "string" ? res : res.message;
+
+                                    if (typeof res === "object" && res.whatsapp_api_sent) {
+                                        frappe.msgprint({
+                                            title: __("Contract Request Sent via WhatsApp API"),
+                                            indicator: 'green',
+                                            message: `<strong>${msgText}</strong><br><br>Direct WhatsApp message sent successfully to <strong>+${res.whatsapp_number}</strong>.<br><small class="text-muted">${res.whatsapp_api_message || ''}</small>`
+                                        });
+                                    } else if (typeof res === "object" && res.whatsapp_url) {
+                                        // Attempt auto-open in new tab
+                                        try {
+                                            window.open(res.whatsapp_url, '_blank');
+                                        } catch (e) {
+                                            console.log("Popup blocked", e);
+                                        }
+
+                                        frappe.msgprint({
+                                            title: __("Contract Request Ready for WhatsApp"),
+                                            indicator: 'blue',
+                                            message: `<strong>${msgText}</strong><br><br>
+                                            <div class="alert alert-warning p-2 my-2" style="font-size: 13px;">
+                                                <strong>Note:</strong> Meta Cloud API (${res.whatsapp_api_message || 'Test Mode'}). Use the link below to send directly via WhatsApp.
+                                            </div>
+                                            <a href="${res.whatsapp_url}" target="_blank" class="btn btn-primary btn-md mt-2" style="font-weight: 600;">
+                                                <i class="fa fa-whatsapp"></i> Click to Send via WhatsApp (+${res.whatsapp_number})
+                                            </a>`
+                                        });
+                                    } else {
+                                        frappe.show_alert({ message: msgText, indicator: 'green' });
+                                    }
+
                                     frm.reload_doc();
                                 }
                             }
@@ -35,6 +66,18 @@ frappe.ui.form.on("Contract Request", {
                     }
                 );
             }).addClass("btn-primary");
+        }
+
+        // Add direct WhatsApp button if WhatsApp number exists
+        if (frm.doc.contractor_whatsapp || frm.doc.contractor_phone) {
+            let phone = (frm.doc.contractor_whatsapp || frm.doc.contractor_phone).replace(/\D/g, '');
+            if (phone) {
+                frm.add_custom_button(__("Open WhatsApp"), function () {
+                    let applicant = `${frm.doc.first_name || ''} ${frm.doc.last_name || ''}`.trim() || frm.doc.applicant;
+                    let text = encodeURIComponent(`Hello! Contract Request ${frm.doc.name} for Applicant ${applicant}. CV Reference: ${frm.doc.cv_reference || ''}`);
+                    window.open(`https://api.whatsapp.com/send?phone=${phone}&text=${text}`, '_blank');
+                }, __("Action"));
+            }
         }
     },
 
@@ -44,11 +87,13 @@ frappe.ui.form.on("Contract Request", {
                 "applicant", "first_name", "middle_name", "last_name",
                 "date_of_birth", "gender", "nationality", "email", "phone_number",
                 "passport_number", "passport_expiry", "national_id",
-                "highest_education", "institution", "graduation_year", "contractor"
+                "highest_education", "institution", "graduation_year"
             ], function (value) {
                 if (!value) return;
                 Object.keys(value).forEach(function (field) {
-                    frm.set_value(field, value[field]);
+                    if (frm.fields_dict[field]) {
+                        frm.set_value(field, value[field]);
+                    }
                 });
             });
         }
