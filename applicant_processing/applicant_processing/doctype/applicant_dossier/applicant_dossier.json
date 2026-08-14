@@ -23,6 +23,13 @@
   "attached_file",
   "parsed_data_sec",
   "sponsor_name",
+  "sponsor_id",
+  "telephone",
+  "col_break_parsed_1",
+  "visa_number",
+  "contract_date",
+  "contract_duration",
+  "col_break_parsed_2",
   "amount_detail",
   "contractor_name",
   "agency",
@@ -137,6 +144,39 @@
    "fieldname": "sponsor_name",
    "fieldtype": "Data",
    "label": "Sponsor Name"
+  },
+  {
+   "fieldname": "sponsor_id",
+   "fieldtype": "Data",
+   "label": "Sponsor ID"
+  },
+  {
+   "fieldname": "telephone",
+   "fieldtype": "Data",
+   "label": "Telephone"
+  },
+  {
+   "fieldname": "col_break_parsed_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "visa_number",
+   "fieldtype": "Data",
+   "label": "Visa Number"
+  },
+  {
+   "fieldname": "contract_date",
+   "fieldtype": "Date",
+   "label": "Contract Date"
+  },
+  {
+   "fieldname": "contract_duration",
+   "fieldtype": "Data",
+   "label": "Contract Duration"
+  },
+  {
+   "fieldname": "col_break_parsed_2",
+   "fieldtype": "Column Break"
   },
   {
    "fieldname": "amount_detail",

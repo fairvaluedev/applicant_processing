@@ -98,11 +98,16 @@ def parse_dossier_file(dossier_name):
 		frappe.throw("This dossier has already been parsed. Manual edits will not be overwritten.")
 		
 	# MOCK PARSER logic
-	dossier.sponsor_name = "Mock Sponsor Ltd."
-	dossier.amount_detail = 5000.00
+	dossier.sponsor_name = dossier.sponsor_name or "Mock Sponsor Ltd."
+	dossier.sponsor_id = dossier.sponsor_id or "SP-987654321"
+	dossier.telephone = dossier.telephone or "+966501234567"
+	dossier.visa_number = dossier.visa_number or "1309827465"
+	dossier.contract_date = dossier.contract_date or frappe.utils.today()
+	dossier.contract_duration = dossier.contract_duration or "2 Years"
+	dossier.amount_detail = dossier.amount_detail or 5000.00
 	if not dossier.contractor_name:
 		dossier.contractor_name = "Global Recruitment"
-	dossier.agency = "Main Agency"
+	dossier.agency = dossier.agency or "Main Agency"
 	dossier.is_parsed = 1
 	
 	dossier.save(ignore_permissions=True)
