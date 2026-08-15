@@ -66,29 +66,33 @@ until nc -z -v -w30 "$DB_HOST" "$DB_PORT" 2>/dev/null; do
 done
 echo "Database is reachable!"
 
+cd /home/frappe/frappe-bench/sites
+
 # 3. Check if database is already initialized or fresh
 TABLE_EXISTS=$(mariadb -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" -p"$DB_PASSWORD" -D "$DB_NAME" -e "SHOW TABLES LIKE 'tabDocType';" 2>/dev/null | grep tabDocType || true)
 
 if [ -z "$TABLE_EXISTS" ]; then
   echo "=========================================================="
-  echo " Fresh database detected. Creating & initializing site: $SITE_NAME..."
+  echo " Fresh database detected. Bootstrapping site: $SITE_NAME..."
   echo "=========================================================="
-  bench new-site "$SITE_NAME" \
+  ../env/bin/python -m frappe.utils.bench_helper frappe new-site "$SITE_NAME" \
     --db-host "$DB_HOST" \
     --db-port "$DB_PORT" \
     --db-name "$DB_NAME" \
     --db-password "$DB_PASSWORD" \
+    --db-root-username "$DB_USER" \
+    --db-root-password "$DB_PASSWORD" \
     --admin-password "$ADMIN_PASSWORD" \
     --install-app applicant_processing \
-    --no-mariadb-socket \
+    --no-setup-db \
     --set-default \
     --force
 else
   echo "=========================================================="
   echo " Existing database detected. Running migrations for: $SITE_NAME..."
   echo "=========================================================="
-  mkdir -p "sites/$SITE_NAME"
-  cat <<EOF > "sites/$SITE_NAME/site_config.json"
+  mkdir -p "$SITE_NAME"
+  cat <<EOF > "$SITE_NAME/site_config.json"
 {
   "db_name": "${DB_NAME}",
   "db_password": "${DB_PASSWORD}",
@@ -98,26 +102,26 @@ else
   "db_user": "${DB_USER}"
 }
 EOF
-  bench --site "$SITE_NAME" migrate || true
-  bench --site "$SITE_NAME" install-app applicant_processing || true
+  ../env/bin/python -m frappe.utils.bench_helper frappe --site "$SITE_NAME" migrate || true
+  ../env/bin/python -m frappe.utils.bench_helper frappe --site "$SITE_NAME" install-app applicant_processing || true
   if [ -n "$ADMIN_PASSWORD" ]; then
-    bench --site "$SITE_NAME" set-admin-password "$ADMIN_PASSWORD" || true
+    ../env/bin/python -m frappe.utils.bench_helper frappe --site "$SITE_NAME" set-admin-password "$ADMIN_PASSWORD" || true
   fi
 fi
 
 # Link any detected domain alias to the site folder
 if [ -n "$DETECTED_DOMAIN" ] && [ "$DETECTED_DOMAIN" != "$SITE_NAME" ]; then
   echo "Creating symlink alias from $DETECTED_DOMAIN to $SITE_NAME..."
-  ln -sfn "$SITE_NAME" "sites/$DETECTED_DOMAIN" || true
+  ln -sfn "$SITE_NAME" "$DETECTED_DOMAIN" || true
 fi
 
-echo "$SITE_NAME" > sites/currentsite.txt
+echo "$SITE_NAME" > currentsite.txt
 
 echo "=========================================================="
 echo " Starting production web server on 0.0.0.0:$PORT..."
 echo "=========================================================="
 
-exec ./env/bin/gunicorn \
+exec ../env/bin/gunicorn \
   --bind "0.0.0.0:${PORT}" \
   --workers 2 \
   --threads 4 \
