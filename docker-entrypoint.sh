@@ -64,16 +64,6 @@ mkdir -p /home/frappe/frappe-bench/logs
 # Ensure clean apps.txt
 printf "frappe\napplicant_processing\n" > sites/apps.txt
 
-# Patch Frappe __init__.py with Python so it respects db_user from site_config.json
-python3 -c "
-import os
-path = '/home/frappe/frappe-bench/apps/frappe/frappe/__init__.py'
-if os.path.exists(path):
-    c = open(path).read()
-    c = c.replace('user=local.conf.db_name or db_name', 'user=local.conf.get(\"db_user\") or local.conf.db_name or db_name')
-    open(path, 'w').write(c)
-" 2>/dev/null || true
-
 # 1. Update common_site_config.json with default_site & Redis URLs
 cat <<EOF > sites/common_site_config.json
 {
@@ -129,19 +119,30 @@ mkdir -p "$SITE_NAME/private/backups"
 touch "$SITE_NAME/logs/frappe.log"
 touch "$SITE_NAME/logs/frappe.web.log"
 
-# 4. Check if database is already initialized or fresh
-TABLE_EXISTS=$(mariadb -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" -p"$DB_PASSWORD" -D "$DB_NAME" -e "SHOW TABLES LIKE 'tabDocType';" 2>/dev/null || mariadb -h "$DB_HOST" -P "$DB_PORT" -u "frappe" -p"$DB_PASSWORD" -D "$DB_NAME" -e "SHOW TABLES LIKE 'tabDocType';" 2>/dev/null || true)
+# 4. Check if site is fully initialized with core tables (e.g. tabUser)
+USER_TABLE_EXISTS=$(mariadb -h "$DB_HOST" -P "$DB_PORT" -u "frappe" -p"$DB_PASSWORD" -D "$DB_NAME" -e "SHOW TABLES LIKE 'tabUser';" 2>/dev/null | grep tabUser || true)
 
-if [ -z "$TABLE_EXISTS" ]; then
+if [ -z "$USER_TABLE_EXISTS" ]; then
   echo "=========================================================="
-  echo " Fresh database detected. Bootstrapping SQL schema into $DB_NAME..."
+  echo " Initializing full Frappe site: $SITE_NAME..."
   echo "=========================================================="
-  mariadb -h "$DB_HOST" -P "$DB_PORT" -u root -p"$DB_PASSWORD" -D "$DB_NAME" < /home/frappe/frappe-bench/apps/frappe/frappe/database/mariadb/framework_mariadb.sql 2>/dev/null || \
-  mariadb -h "$DB_HOST" -P "$DB_PORT" -u frappe -p"$DB_PASSWORD" -D "$DB_NAME" < /home/frappe/frappe-bench/apps/frappe/frappe/database/mariadb/framework_mariadb.sql || true
-fi
-
-# 5. Write site_config.json
-cat <<EOF > "$SITE_NAME/site_config.json"
+  ../env/bin/python -m frappe.utils.bench_helper frappe new-site "$SITE_NAME" \
+    --db-host "$DB_HOST" \
+    --db-port "$DB_PORT" \
+    --db-name "$DB_NAME" \
+    --db-password "$DB_PASSWORD" \
+    --db-root-username "root" \
+    --db-root-password "$DB_PASSWORD" \
+    --admin-password "$ADMIN_PASSWORD" \
+    --install-app applicant_processing \
+    --no-setup-db \
+    --set-default \
+    --force
+else
+  echo "=========================================================="
+  echo " Existing database detected. Running migrations on: $SITE_NAME..."
+  echo "=========================================================="
+  cat <<EOF > "$SITE_NAME/site_config.json"
 {
   "db_name": "${DB_NAME}",
   "db_password": "${DB_PASSWORD}",
@@ -151,6 +152,12 @@ cat <<EOF > "$SITE_NAME/site_config.json"
   "db_user": "frappe"
 }
 EOF
+  ../env/bin/python -m frappe.utils.bench_helper frappe --site "$SITE_NAME" migrate || true
+  ../env/bin/python -m frappe.utils.bench_helper frappe --site "$SITE_NAME" install-app applicant_processing || true
+  if [ -n "$ADMIN_PASSWORD" ]; then
+    ../env/bin/python -m frappe.utils.bench_helper frappe --site "$SITE_NAME" set-admin-password "$ADMIN_PASSWORD" || true
+  fi
+fi
 
 # Link any detected domain alias to the site folder
 if [ -n "$DETECTED_DOMAIN" ] && [ "$DETECTED_DOMAIN" != "$SITE_NAME" ]; then
@@ -159,18 +166,6 @@ if [ -n "$DETECTED_DOMAIN" ] && [ "$DETECTED_DOMAIN" != "$SITE_NAME" ]; then
 fi
 
 echo "$SITE_NAME" > currentsite.txt
-
-echo "=========================================================="
-echo " Running Frappe migrations on: $SITE_NAME..."
-echo "=========================================================="
-../env/bin/python -m frappe.utils.bench_helper frappe --site "$SITE_NAME" migrate || true
-
-echo "Ensuring applicant_processing is installed on $SITE_NAME..."
-../env/bin/python -m frappe.utils.bench_helper frappe --site "$SITE_NAME" install-app applicant_processing || true
-
-if [ -n "$ADMIN_PASSWORD" ]; then
-  ../env/bin/python -m frappe.utils.bench_helper frappe --site "$SITE_NAME" set-admin-password "$ADMIN_PASSWORD" || true
-fi
 
 echo "=========================================================="
 echo " Starting production web server on 0.0.0.0:$PORT..."
