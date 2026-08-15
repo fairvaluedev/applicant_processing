@@ -69,6 +69,19 @@ until nc -z -v -w30 "$DB_HOST" "$DB_PORT" 2>/dev/null; do
 done
 echo "Database is reachable!"
 
+# Check if DB credentials work, auto-fallback to root if needed
+if ! mariadb -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" -p"$DB_PASSWORD" -e "SELECT 1;" 2>/dev/null; then
+  echo "Connecting with user '$DB_USER' failed. Checking root credentials..."
+  if [ -n "$MARIADB_ROOT_PASSWORD" ]; then
+    DB_USER="root"
+    DB_PASSWORD="$MARIADB_ROOT_PASSWORD"
+    echo "Switched to user 'root' with MARIADB_ROOT_PASSWORD."
+  fi
+fi
+
+# Ensure database exists
+mariadb -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" -p"$DB_PASSWORD" -e "CREATE DATABASE IF NOT EXISTS \`$DB_NAME\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;" 2>/dev/null || true
+
 cd /home/frappe/frappe-bench/sites
 
 # 3. Check if database is already initialized or fresh
