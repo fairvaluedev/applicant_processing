@@ -13,9 +13,9 @@ ADMIN_PASSWORD="${ADMIN_PASSWORD:-admin}"
 # Support both MariaDB Docker image variables and Railway MySQL variables
 DB_HOST="${DB_HOST:-${MARIADB_HOST:-${MYSQLHOST:-mariadb}}}"
 DB_PORT="${DB_PORT:-${MARIADB_PORT:-${MYSQLPORT:-3306}}}"
-DB_USER="${DB_USER:-${MARIADB_USER:-${MYSQLUSER:-root}}}"
-DB_PASSWORD="${DB_PASSWORD:-${MARIADB_PASSWORD:-${MYSQLPASSWORD:-${MARIADB_ROOT_PASSWORD:-root}}}}"
 DB_NAME="${DB_NAME:-${MARIADB_DATABASE:-${MYSQLDATABASE:-frappe}}}"
+DB_PASSWORD="${DB_PASSWORD:-${MARIADB_PASSWORD:-${MYSQLPASSWORD:-${MARIADB_ROOT_PASSWORD:-root}}}}"
+DB_USER="$DB_NAME"
 
 # Support standard Railway Redis environment variables
 REDIS_URL="${REDIS_URL:-${REDIS_PRIVATE_URL:-redis://redis:6379}}"
@@ -72,41 +72,37 @@ until nc -z -v -w30 "$DB_HOST" "$DB_PORT" 2>/dev/null; do
 done
 echo "Database is reachable!"
 
-# Find working DB credentials
-WORK_USER=""
-WORK_PASS=""
-
-for U in "root" "$DB_USER" "frappe"; do
-  for P in "$DB_PASSWORD" "$MARIADB_ROOT_PASSWORD" "$MARIADB_PASSWORD" "$MYSQLPASSWORD" "$MYSQL_ROOT_PASSWORD" "root" ""; do
-    if mariadb -h "$DB_HOST" -P "$DB_PORT" -u "$U" -p"$P" -e "SELECT 1;" >/dev/null 2>&1; then
-      WORK_USER="$U"
-      WORK_PASS="$P"
-      break 2
-    fi
-  done
+# 3. Grant full privileges to user matching $DB_NAME using root
+ROOT_SUCCESS=false
+for P in "$MARIADB_ROOT_PASSWORD" "$DB_PASSWORD" "$MYSQLPASSWORD" "$MYSQL_ROOT_PASSWORD" "root" ""; do
+  if mariadb -h "$DB_HOST" -P "$DB_PORT" -u root -p"$P" -e "
+    CREATE DATABASE IF NOT EXISTS \`$DB_NAME\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+    CREATE USER IF NOT EXISTS '$DB_NAME'@'%' IDENTIFIED BY '$DB_PASSWORD';
+    ALTER USER '$DB_NAME'@'%' IDENTIFIED BY '$DB_PASSWORD';
+    GRANT ALL PRIVILEGES ON *.* TO '$DB_NAME'@'%' WITH GRANT OPTION;
+    GRANT ALL PRIVILEGES ON \`$DB_NAME\`.* TO '$DB_NAME'@'%' WITH GRANT OPTION;
+    FLUSH PRIVILEGES;
+  " 2>/dev/null; then
+    echo "Root successfully created and granted full permissions to user '$DB_NAME'@'%'!"
+    ROOT_SUCCESS=true
+    break
+  fi
 done
 
-if [ -n "$WORK_USER" ]; then
-  echo "Successfully authenticated to MariaDB as '$WORK_USER'!"
-  DB_USER="$WORK_USER"
-  DB_PASSWORD="$WORK_PASS"
-else
-  echo "Note: Using configured credentials for DB initialization."
+if [ "$ROOT_SUCCESS" = false ]; then
+  echo "Note: Direct root grant skipped, testing direct connection as '$DB_NAME'..."
 fi
 
-# Ensure database exists and grant permissions to both root and frappe
-mariadb -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" -p"$DB_PASSWORD" -e "
-CREATE DATABASE IF NOT EXISTS \`$DB_NAME\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER IF NOT EXISTS 'frappe'@'%' IDENTIFIED BY '$DB_PASSWORD';
-ALTER USER 'frappe'@'%' IDENTIFIED BY '$DB_PASSWORD';
-GRANT ALL PRIVILEGES ON *.* TO 'frappe'@'%' WITH GRANT OPTION;
-GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' WITH GRANT OPTION;
-FLUSH PRIVILEGES;
-" 2>/dev/null || true
+# Verify connection as $DB_NAME
+until mariadb -h "$DB_HOST" -P "$DB_PORT" -u "$DB_NAME" -p"$DB_PASSWORD" -e "SELECT 1;" 2>/dev/null; do
+  echo "Waiting for user '$DB_NAME' authentication to become active..."
+  sleep 2
+  break
+done
 
 cd /home/frappe/frappe-bench/sites
 
-# 3. Create site directory and all required subdirectories
+# 4. Create site directory and all required subdirectories
 mkdir -p "$SITE_NAME/logs"
 mkdir -p "$SITE_NAME/public/files"
 mkdir -p "$SITE_NAME/private/files"
@@ -114,17 +110,17 @@ mkdir -p "$SITE_NAME/private/backups"
 touch "$SITE_NAME/logs/frappe.log"
 touch "$SITE_NAME/logs/frappe.web.log"
 
-# 4. Check if database is already initialized or fresh
-TABLE_EXISTS=$(mariadb -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" -p"$DB_PASSWORD" -D "$DB_NAME" -e "SHOW TABLES LIKE 'tabDocType';" 2>/dev/null | grep tabDocType || true)
+# 5. Check if database is already initialized or fresh
+TABLE_EXISTS=$(mariadb -h "$DB_HOST" -P "$DB_PORT" -u "$DB_NAME" -p"$DB_PASSWORD" -D "$DB_NAME" -e "SHOW TABLES LIKE 'tabDocType';" 2>/dev/null | grep tabDocType || true)
 
 if [ -z "$TABLE_EXISTS" ]; then
   echo "=========================================================="
   echo " Fresh database detected. Bootstrapping SQL schema into $DB_NAME..."
   echo "=========================================================="
-  mariadb -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" -p"$DB_PASSWORD" -D "$DB_NAME" < /home/frappe/frappe-bench/apps/frappe/frappe/database/mariadb/framework_mariadb.sql || true
+  mariadb -h "$DB_HOST" -P "$DB_PORT" -u "$DB_NAME" -p"$DB_PASSWORD" -D "$DB_NAME" < /home/frappe/frappe-bench/apps/frappe/frappe/database/mariadb/framework_mariadb.sql || true
 fi
 
-# 5. Write site_config.json with the authenticated DB_USER
+# 6. Write site_config.json
 cat <<EOF > "$SITE_NAME/site_config.json"
 {
   "db_name": "${DB_NAME}",
@@ -132,7 +128,7 @@ cat <<EOF > "$SITE_NAME/site_config.json"
   "db_type": "mariadb",
   "db_host": "${DB_HOST}",
   "db_port": ${DB_PORT},
-  "db_user": "${DB_USER}"
+  "db_user": "${DB_NAME}"
 }
 EOF
 
