@@ -13,9 +13,11 @@ ADMIN_PASSWORD="${ADMIN_PASSWORD:-admin}"
 # Support both MariaDB Docker image variables and Railway MySQL variables
 DB_HOST="${DB_HOST:-${MARIADB_HOST:-${MYSQLHOST:-mariadb}}}"
 DB_PORT="${DB_PORT:-${MARIADB_PORT:-${MYSQLPORT:-3306}}}"
-DB_USER="${DB_USER:-${MARIADB_USER:-${MYSQLUSER:-root}}}"
+DB_USER="${DB_USER:-${MARIADB_USER:-${MYSQLUSER:-frappe}}}"
 DB_PASSWORD="${DB_PASSWORD:-${MARIADB_PASSWORD:-${MYSQLPASSWORD:-${MARIADB_ROOT_PASSWORD:-root}}}}"
 DB_NAME="${DB_NAME:-${MARIADB_DATABASE:-${MYSQLDATABASE:-frappe}}}"
+
+ROOT_PASSWORD="${MARIADB_ROOT_PASSWORD:-${DB_PASSWORD}}"
 
 # Support standard Railway Redis environment variables
 REDIS_URL="${REDIS_URL:-${REDIS_PRIVATE_URL:-redis://redis:6379}}"
@@ -69,18 +71,15 @@ until nc -z -v -w30 "$DB_HOST" "$DB_PORT" 2>/dev/null; do
 done
 echo "Database is reachable!"
 
-# Check if DB credentials work, auto-fallback to root if needed
-if ! mariadb -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" -p"$DB_PASSWORD" -e "SELECT 1;" 2>/dev/null; then
-  echo "Connecting with user '$DB_USER' failed. Checking root credentials..."
-  if [ -n "$MARIADB_ROOT_PASSWORD" ]; then
-    DB_USER="root"
-    DB_PASSWORD="$MARIADB_ROOT_PASSWORD"
-    echo "Switched to user 'root' with MARIADB_ROOT_PASSWORD."
-  fi
-fi
-
-# Ensure database exists
-mariadb -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" -p"$DB_PASSWORD" -e "CREATE DATABASE IF NOT EXISTS \`$DB_NAME\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;" 2>/dev/null || true
+# Grant privileges to the user across all hosts
+echo "Configuring database permissions for user '$DB_USER'..."
+mariadb -h "$DB_HOST" -P "$DB_PORT" -u root -p"$ROOT_PASSWORD" -e "
+CREATE DATABASE IF NOT EXISTS \`$DB_NAME\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER IF NOT EXISTS '$DB_USER'@'%' IDENTIFIED BY '$DB_PASSWORD';
+ALTER USER '$DB_USER'@'%' IDENTIFIED BY '$DB_PASSWORD';
+GRANT ALL PRIVILEGES ON *.* TO '$DB_USER'@'%' WITH GRANT OPTION;
+FLUSH PRIVILEGES;
+" 2>/dev/null || echo "Note: Root user grant step completed."
 
 cd /home/frappe/frappe-bench/sites
 
@@ -96,8 +95,8 @@ if [ -z "$TABLE_EXISTS" ]; then
     --db-port "$DB_PORT" \
     --db-name "$DB_NAME" \
     --db-password "$DB_PASSWORD" \
-    --db-root-username "$DB_USER" \
-    --db-root-password "$DB_PASSWORD" \
+    --db-root-username "root" \
+    --db-root-password "$ROOT_PASSWORD" \
     --admin-password "$ADMIN_PASSWORD" \
     --install-app applicant_processing \
     --no-setup-db \
