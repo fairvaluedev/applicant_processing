@@ -36,6 +36,9 @@ cd /home/frappe/frappe-bench
 
 export PYTHONPATH="/home/frappe/frappe-bench/apps/frappe:/home/frappe/frappe-bench/apps/applicant_processing:/home/frappe/frappe-bench/sites:${PYTHONPATH}"
 
+# Ensure bench logs directory exists
+mkdir -p /home/frappe/frappe-bench/logs
+
 # Ensure clean apps.txt
 printf "frappe\napplicant_processing\n" > sites/apps.txt
 
@@ -103,7 +106,15 @@ FLUSH PRIVILEGES;
 
 cd /home/frappe/frappe-bench/sites
 
-# 3. Check if database is already initialized or fresh
+# 3. Create site directory and all required subdirectories
+mkdir -p "$SITE_NAME/logs"
+mkdir -p "$SITE_NAME/public/files"
+mkdir -p "$SITE_NAME/private/files"
+mkdir -p "$SITE_NAME/private/backups"
+touch "$SITE_NAME/logs/frappe.log"
+touch "$SITE_NAME/logs/frappe.web.log"
+
+# 4. Check if database is already initialized or fresh
 TABLE_EXISTS=$(mariadb -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" -p"$DB_PASSWORD" -D "$DB_NAME" -e "SHOW TABLES LIKE 'tabDocType';" 2>/dev/null | grep tabDocType || true)
 
 if [ -z "$TABLE_EXISTS" ]; then
@@ -113,8 +124,7 @@ if [ -z "$TABLE_EXISTS" ]; then
   mariadb -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" -p"$DB_PASSWORD" -D "$DB_NAME" < /home/frappe/frappe-bench/apps/frappe/frappe/database/mariadb/framework_mariadb.sql || true
 fi
 
-# 4. Write site_config.json
-mkdir -p "$SITE_NAME"
+# 5. Write site_config.json
 cat <<EOF > "$SITE_NAME/site_config.json"
 {
   "db_name": "${DB_NAME}",
