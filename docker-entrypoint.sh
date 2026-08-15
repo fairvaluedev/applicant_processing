@@ -17,8 +17,6 @@ DB_USER="${DB_USER:-${MARIADB_USER:-${MYSQLUSER:-frappe}}}"
 DB_PASSWORD="${DB_PASSWORD:-${MARIADB_PASSWORD:-${MYSQLPASSWORD:-${MARIADB_ROOT_PASSWORD:-root}}}}"
 DB_NAME="${DB_NAME:-${MARIADB_DATABASE:-${MYSQLDATABASE:-frappe}}}"
 
-ROOT_PASSWORD="${MARIADB_ROOT_PASSWORD:-${DB_PASSWORD}}"
-
 # Support standard Railway Redis environment variables
 REDIS_URL="${REDIS_URL:-${REDIS_PRIVATE_URL:-redis://redis:6379}}"
 REDIS_CACHE_URL="${REDIS_CACHE_URL:-${REDIS_URL}}"
@@ -71,15 +69,37 @@ until nc -z -v -w30 "$DB_HOST" "$DB_PORT" 2>/dev/null; do
 done
 echo "Database is reachable!"
 
-# Grant privileges to the user across all hosts
-echo "Configuring database permissions for user '$DB_USER'..."
-mariadb -h "$DB_HOST" -P "$DB_PORT" -u root -p"$ROOT_PASSWORD" -e "
+# Find working DB credentials
+WORK_USER=""
+WORK_PASS=""
+
+for U in "$DB_USER" "root" "frappe"; do
+  for P in "$DB_PASSWORD" "$MARIADB_ROOT_PASSWORD" "$MARIADB_PASSWORD" "$MYSQLPASSWORD" "$MYSQL_ROOT_PASSWORD" "root" ""; do
+    if mariadb -h "$DB_HOST" -P "$DB_PORT" -u "$U" -p"$P" -e "SELECT 1;" >/dev/null 2>&1; then
+      WORK_USER="$U"
+      WORK_PASS="$P"
+      break 2
+    fi
+  done
+done
+
+if [ -n "$WORK_USER" ]; then
+  echo "Successfully connected to MariaDB as '$WORK_USER'!"
+  DB_USER="$WORK_USER"
+  DB_PASSWORD="$WORK_PASS"
+else
+  echo "Note: Using default credential '$DB_USER' for initialization."
+fi
+
+# Ensure database exists and grant permissions
+mariadb -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" -p"$DB_PASSWORD" -e "
 CREATE DATABASE IF NOT EXISTS \`$DB_NAME\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER IF NOT EXISTS '$DB_USER'@'%' IDENTIFIED BY '$DB_PASSWORD';
-ALTER USER '$DB_USER'@'%' IDENTIFIED BY '$DB_PASSWORD';
-GRANT ALL PRIVILEGES ON *.* TO '$DB_USER'@'%' WITH GRANT OPTION;
+CREATE USER IF NOT EXISTS 'frappe'@'%' IDENTIFIED BY '$DB_PASSWORD';
+ALTER USER 'frappe'@'%' IDENTIFIED BY '$DB_PASSWORD';
+GRANT ALL PRIVILEGES ON \`$DB_NAME\`.* TO 'frappe'@'%';
+GRANT ALL PRIVILEGES ON *.* TO 'frappe'@'%' WITH GRANT OPTION;
 FLUSH PRIVILEGES;
-" 2>/dev/null || echo "Note: Root user grant step completed."
+" 2>/dev/null || true
 
 cd /home/frappe/frappe-bench/sites
 
@@ -88,26 +108,14 @@ TABLE_EXISTS=$(mariadb -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" -p"$DB_PASSWORD
 
 if [ -z "$TABLE_EXISTS" ]; then
   echo "=========================================================="
-  echo " Fresh database detected. Bootstrapping site: $SITE_NAME..."
+  echo " Fresh database detected. Bootstrapping SQL schema into $DB_NAME..."
   echo "=========================================================="
-  ../env/bin/python -m frappe.utils.bench_helper frappe new-site "$SITE_NAME" \
-    --db-host "$DB_HOST" \
-    --db-port "$DB_PORT" \
-    --db-name "$DB_NAME" \
-    --db-password "$DB_PASSWORD" \
-    --db-root-username "root" \
-    --db-root-password "$ROOT_PASSWORD" \
-    --admin-password "$ADMIN_PASSWORD" \
-    --install-app applicant_processing \
-    --no-setup-db \
-    --set-default \
-    --force
-else
-  echo "=========================================================="
-  echo " Existing database detected. Running migrations for: $SITE_NAME..."
-  echo "=========================================================="
-  mkdir -p "$SITE_NAME"
-  cat <<EOF > "$SITE_NAME/site_config.json"
+  mariadb -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" -p"$DB_PASSWORD" -D "$DB_NAME" < /home/frappe/frappe-bench/apps/frappe/frappe/database/mariadb/framework_mariadb.sql || true
+fi
+
+# 4. Write site_config.json
+mkdir -p "$SITE_NAME"
+cat <<EOF > "$SITE_NAME/site_config.json"
 {
   "db_name": "${DB_NAME}",
   "db_password": "${DB_PASSWORD}",
@@ -117,12 +125,6 @@ else
   "db_user": "${DB_USER}"
 }
 EOF
-  ../env/bin/python -m frappe.utils.bench_helper frappe --site "$SITE_NAME" migrate || true
-  ../env/bin/python -m frappe.utils.bench_helper frappe --site "$SITE_NAME" install-app applicant_processing || true
-  if [ -n "$ADMIN_PASSWORD" ]; then
-    ../env/bin/python -m frappe.utils.bench_helper frappe --site "$SITE_NAME" set-admin-password "$ADMIN_PASSWORD" || true
-  fi
-fi
 
 # Link any detected domain alias to the site folder
 if [ -n "$DETECTED_DOMAIN" ] && [ "$DETECTED_DOMAIN" != "$SITE_NAME" ]; then
@@ -131,6 +133,18 @@ if [ -n "$DETECTED_DOMAIN" ] && [ "$DETECTED_DOMAIN" != "$SITE_NAME" ]; then
 fi
 
 echo "$SITE_NAME" > currentsite.txt
+
+echo "=========================================================="
+echo " Running Frappe migrations on: $SITE_NAME..."
+echo "=========================================================="
+../env/bin/python -m frappe.utils.bench_helper frappe --site "$SITE_NAME" migrate || true
+
+echo "Ensuring applicant_processing is installed on $SITE_NAME..."
+../env/bin/python -m frappe.utils.bench_helper frappe --site "$SITE_NAME" install-app applicant_processing || true
+
+if [ -n "$ADMIN_PASSWORD" ]; then
+  ../env/bin/python -m frappe.utils.bench_helper frappe --site "$SITE_NAME" set-admin-password "$ADMIN_PASSWORD" || true
+fi
 
 echo "=========================================================="
 echo " Starting production web server on 0.0.0.0:$PORT..."
