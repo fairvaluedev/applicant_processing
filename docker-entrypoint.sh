@@ -1,7 +1,12 @@
 #!/bin/bash
 set -e
 
-SITE_NAME="${SITE_NAME:-applicant-processing.railway.internal}"
+# Detect Railway domain or fallback to configured SITE_NAME
+DETECTED_DOMAIN="${RAILWAY_PUBLIC_DOMAIN:-${RAILWAY_STATIC_URL:-}}"
+DETECTED_DOMAIN="${DETECTED_DOMAIN#https://}"
+DETECTED_DOMAIN="${DETECTED_DOMAIN%/}"
+
+SITE_NAME="${SITE_NAME:-${DETECTED_DOMAIN:-applicant-processing.railway.internal}}"
 PORT="${PORT:-8000}"
 ADMIN_PASSWORD="${ADMIN_PASSWORD:-admin}"
 
@@ -20,6 +25,7 @@ REDIS_QUEUE_URL="${REDIS_QUEUE_URL:-${REDIS_URL}}"
 echo "=========================================================="
 echo " Starting Applicant Processing App on Railway"
 echo " Site Name:   $SITE_NAME"
+echo " Detected:    $DETECTED_DOMAIN"
 echo " Port:        $PORT"
 echo " DB Host:     $DB_HOST:$DB_PORT"
 echo " DB Name:     $DB_NAME"
@@ -28,13 +34,14 @@ echo "=========================================================="
 
 cd /home/frappe/frappe-bench
 
-# 1. Update common_site_config.json with Redis URLs
+# 1. Update common_site_config.json with default_site & Redis URLs
 cat <<EOF > sites/common_site_config.json
 {
   "auto_update": false,
   "background_workers": 1,
+  "default_site": "${SITE_NAME}",
   "developer_mode": 0,
-  "dns_multitenant": true,
+  "dns_multitenant": false,
   "file_watcher_port": 6787,
   "gunicorn_workers": 2,
   "rebase_on_pull": false,
@@ -73,6 +80,12 @@ if [ ! -f "$SITE_CONFIG" ]; then
   "db_user": "${DB_USER}"
 }
 EOF
+fi
+
+# Link any detected domain alias to the site folder
+if [ -n "$DETECTED_DOMAIN" ] && [ "$DETECTED_DOMAIN" != "$SITE_NAME" ]; then
+  echo "Creating symlink alias from $DETECTED_DOMAIN to $SITE_NAME..."
+  ln -sfn "$SITE_NAME" "sites/$DETECTED_DOMAIN" || true
 fi
 
 # Set default site
