@@ -36,6 +36,9 @@ cd /home/frappe/frappe-bench
 
 export PYTHONPATH="/home/frappe/frappe-bench/apps/frappe:/home/frappe/frappe-bench/apps/applicant_processing:/home/frappe/frappe-bench/sites:${PYTHONPATH}"
 
+# Ensure clean apps.txt
+printf "frappe\napplicant_processing\n" > sites/apps.txt
+
 # 1. Update common_site_config.json with default_site & Redis URLs
 cat <<EOF > sites/common_site_config.json
 {

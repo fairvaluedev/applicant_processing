@@ -52,8 +52,8 @@ RUN git clone --depth 1 -b version-15 https://github.com/frappe/frappe.git apps/
 COPY --chown=frappe:frappe . apps/applicant_processing
 RUN ./env/bin/pip install --no-cache-dir -e ./apps/applicant_processing
 
-# 6. Initialize apps.txt and entrypoint script
-RUN echo -e "frappe\napplicant_processing" > sites/apps.txt \
+# 6. Initialize apps.txt with printf and entrypoint script
+RUN printf "frappe\napplicant_processing\n" > sites/apps.txt \
     && cp apps/applicant_processing/docker-entrypoint.sh /home/frappe/docker-entrypoint.sh
 
 USER root
