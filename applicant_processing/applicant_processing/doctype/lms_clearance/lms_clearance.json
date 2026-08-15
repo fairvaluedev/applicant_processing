@@ -14,6 +14,7 @@
   "last_name",
   "passport_number",
   "status",
+  "issued_on",
   "employee",
   "financials_sec",
   "financials",
@@ -79,7 +80,14 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Status",
-   "options": "Pending\nCompleted"
+   "options": "Pending\nIssued\nRejected"
+  },
+  {
+   "depends_on": "eval:doc.status=='Issued'",
+   "fieldname": "issued_on",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Issued On"
   },
   {
    "fieldname": "employee",
@@ -128,6 +136,11 @@
    "role": "System Manager",
    "share": 1,
    "write": 1
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "role": "LMS Employee"
   }
  ],
  "row_format": "Dynamic",

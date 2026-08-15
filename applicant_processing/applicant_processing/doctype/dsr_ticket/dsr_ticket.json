@@ -95,7 +95,7 @@
   }
  ],
  "links": [],
- "modified": "2026-08-10 18:25:14.061634",
+ "modified": "2026-08-15 02:19:00.000000",
  "modified_by": "Administrator",
  "module": "Applicant Processing",
  "name": "DSR Ticket",
@@ -113,6 +113,11 @@
    "role": "System Manager",
    "share": 1,
    "write": 1
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "role": "LMS Employee"
   }
  ],
  "row_format": "Dynamic",

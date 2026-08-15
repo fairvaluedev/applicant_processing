@@ -15,15 +15,28 @@ class DSRTicket(Document):
 		elif not self.full_name:
 			self.full_name = f"{self.first_name or ''} {self.last_name or ''}".strip()
 
+	def after_insert(self):
+		self._sync_lms_employee_permission()
+
 	def on_update(self):
 		if self.dsr:
 			frappe.db.set_value("DSR", self.dsr, "ticket_status", self.status, update_modified=False)
+		self._sync_lms_employee_permission()
 		self._recalculate_applicant()
 
 	def on_trash(self):
 		if self.dsr:
 			frappe.db.set_value("DSR", self.dsr, "ticket_status", "Pending", update_modified=False)
 		self._recalculate_applicant()
+
+	def _sync_lms_employee_permission(self):
+		"""Ensure assigned LMS employee has User Permission for this Ticket document."""
+		if not self.dsr:
+			return
+		lms_employee = frappe.db.get_value("LMS Clearance", {"dsr": self.dsr}, "employee")
+		if lms_employee:
+			from applicant_processing.applicant_processing.doctype.lms_clearance.lms_clearance import _create_user_permission_if_missing
+			_create_user_permission_if_missing(lms_employee, "DSR Ticket", self.name)
 
 	def _recalculate_applicant(self):
 		if self.dsr:
@@ -32,6 +45,3 @@ class DSRTicket(Document):
 			if applicant:
 				from applicant_processing.applicant_processing.doctype.applicant.applicant import recalculate_applicant_state
 				recalculate_applicant_state(applicant)
-
-
-

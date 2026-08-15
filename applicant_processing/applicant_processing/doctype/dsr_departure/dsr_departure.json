@@ -14,6 +14,10 @@
   "passport_number",
   "status",
   "departure_time",
+  "medical_2_sec",
+  "medical_2_result",
+  "medical_2_date",
+  "medical_2_remark",
   "financials_sec",
   "financials"
  ],
@@ -77,6 +81,29 @@
    "reqd": 1
   },
   {
+   "fieldname": "medical_2_sec",
+   "fieldtype": "Section Break",
+   "label": "Medical 2 (Pre-Departure)"
+  },
+  {
+   "fieldname": "medical_2_result",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Medical 2 Result",
+   "options": "\nPass\nFail"
+  },
+  {
+   "fieldname": "medical_2_date",
+   "fieldtype": "Date",
+   "label": "Medical 2 Date"
+  },
+  {
+   "depends_on": "eval:doc.medical_2_result=='Fail'",
+   "fieldname": "medical_2_remark",
+   "fieldtype": "Small Text",
+   "label": "Medical 2 Remark"
+  },
+  {
    "fieldname": "financials_sec",
    "fieldtype": "Section Break",
    "label": "Income / Expenses"
@@ -89,7 +116,7 @@
   }
  ],
  "links": [],
- "modified": "2026-08-10 18:25:26.223806",
+ "modified": "2026-08-15 02:19:00.000000",
  "modified_by": "Administrator",
  "module": "Applicant Processing",
  "name": "DSR Departure",
@@ -107,6 +134,11 @@
    "role": "System Manager",
    "share": 1,
    "write": 1
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "role": "LMS Employee"
   }
  ],
  "row_format": "Dynamic",

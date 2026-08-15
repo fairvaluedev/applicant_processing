@@ -12,13 +12,52 @@
   "middle_name",
   "last_name",
   "full_name",
+  "nationality",
   "religion",
   "marital_status",
   "children",
+  "age",
   "col_break_personal",
-  "date_of_birth",
   "gender",
-  "nationality",
+  "date_of_birth",
+  "place_of_birth",
+  "leaving_town",
+  "height",
+  "weight",
+  "complexion",
+  "photos_sec",
+  "photo_passport",
+  "photo_full_body",
+  "col_break_photos",
+  "passport_scan",
+  "identification_sec",
+  "passport_number",
+  "passport_issue_date",
+  "passport_expiry",
+  "place_of_issue",
+  "col_break_id",
+  "national_id",
+  "labour_id",
+  "job_experience_sec",
+  "job_applied",
+  "monthly_salary",
+  "highest_education",
+  "col_break_job",
+  "english_level",
+  "arabic_level",
+  "experience_country",
+  "experience_period",
+  "skills_sec",
+  "skill_cleaning",
+  "skill_washing",
+  "skill_ironing",
+  "skill_baby_sitting",
+  "col_break_skills",
+  "skill_children_care",
+  "skill_cooking",
+  "skill_arabic_cooking",
+  "skill_sewing",
+  "skill_elderly_care",
   "contact_info_sec",
   "phone_number",
   "alternate_phone",
@@ -32,12 +71,6 @@
   "contact_person_name",
   "contact_person_phone",
   "remarks",
-  "identification_sec",
-  "passport_number",
-  "passport_expiry",
-  "col_break_id",
-  "national_id",
-  "labour_id",
   "coc_sec",
   "coc_status",
   "exam_date",
@@ -49,14 +82,6 @@
   "col_break_medical",
   "medical_remaining_days",
   "medical_remarks",
-  "education_employment_sec",
-  "highest_education",
-  "institution",
-  "graduation_year",
-  "education_remarks",
-  "col_break_edu_emp",
-  "current_employer",
-  "years_of_experience",
   "internal_info_sec",
   "applicant_state",
   "state_step",
@@ -109,29 +134,51 @@
    "read_only": 1
   },
   {
+   "fieldname": "nationality",
+   "fieldtype": "Link",
+   "label": "Nationality",
+   "options": "Country",
+   "reqd": 1
+  },
+  {
    "fieldname": "religion",
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Religion",
-   "options": "\nMuslim\nOrthodox\nProtestant\nCatholic\nOther",
+   "options": "\nMuslim\nNon-Muslim\nOrthodox\nProtestant\nCatholic\nOther",
    "reqd": 1
   },
   {
    "fieldname": "marital_status",
    "fieldtype": "Select",
-   "label": "Marital Status",
+   "label": "Civil / Marital Status",
    "options": "\nSingle\nMarried\nDivorced\nWidowed",
    "reqd": 1
   },
   {
+   "default": "0",
    "fieldname": "children",
    "fieldtype": "Int",
-   "label": "Children (Count)",
+   "label": "Number of Children",
    "reqd": 1
+  },
+  {
+   "fieldname": "age",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Age"
   },
   {
    "fieldname": "col_break_personal",
    "fieldtype": "Column Break"
+  },
+  {
+   "default": "Female",
+   "fieldname": "gender",
+   "fieldtype": "Select",
+   "label": "Gender",
+   "options": "\nFemale\nMale\nOther",
+   "reqd": 1
   },
   {
    "fieldname": "date_of_birth",
@@ -139,18 +186,206 @@
    "label": "Date of Birth"
   },
   {
-   "fieldname": "gender",
-   "fieldtype": "Select",
-   "label": "Gender",
-   "options": "\nMale\nFemale",
-   "reqd": 1
+   "fieldname": "place_of_birth",
+   "fieldtype": "Data",
+   "label": "Place of Birth"
   },
   {
-   "fieldname": "nationality",
-   "fieldtype": "Link",
-   "label": "Nationality",
-   "options": "Country",
-   "reqd": 1
+   "fieldname": "leaving_town",
+   "fieldtype": "Data",
+   "label": "Leaving Town"
+  },
+  {
+   "fieldname": "height",
+   "fieldtype": "Data",
+   "label": "Height"
+  },
+  {
+   "fieldname": "weight",
+   "fieldtype": "Data",
+   "label": "Weight"
+  },
+  {
+   "fieldname": "complexion",
+   "fieldtype": "Select",
+   "label": "Complexion",
+   "options": "\nFair\nMedium\nDark\nOther"
+  },
+  {
+   "fieldname": "photos_sec",
+   "fieldtype": "Section Break",
+   "label": "Photos & Scanned Documents"
+  },
+  {
+   "fieldname": "photo_passport",
+   "fieldtype": "Attach Image",
+   "label": "Small / Passport Photo"
+  },
+  {
+   "fieldname": "photo_full_body",
+   "fieldtype": "Attach Image",
+   "label": "Full Body Photo"
+  },
+  {
+   "fieldname": "col_break_photos",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "passport_scan",
+   "fieldtype": "Attach Image",
+   "label": "Scanned Passport Copy"
+  },
+  {
+   "fieldname": "identification_sec",
+   "fieldtype": "Section Break",
+   "label": "Passport & Identification"
+  },
+  {
+   "fieldname": "passport_number",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Passport Number"
+  },
+  {
+   "fieldname": "passport_issue_date",
+   "fieldtype": "Date",
+   "label": "Passport Issue Date"
+  },
+  {
+   "fieldname": "passport_expiry",
+   "fieldtype": "Date",
+   "label": "Passport Expiry Date"
+  },
+  {
+   "fieldname": "place_of_issue",
+   "fieldtype": "Data",
+   "label": "Place of Issue"
+  },
+  {
+   "fieldname": "col_break_id",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "national_id",
+   "fieldtype": "Data",
+   "label": "National ID Number"
+  },
+  {
+   "fieldname": "labour_id",
+   "fieldtype": "Data",
+   "label": "Labour ID"
+  },
+  {
+   "fieldname": "job_experience_sec",
+   "fieldtype": "Section Break",
+   "label": "Job, Education & Language Skills"
+  },
+  {
+   "default": "House Maid",
+   "fieldname": "job_applied",
+   "fieldtype": "Data",
+   "label": "Job / Position Applied"
+  },
+  {
+   "fieldname": "monthly_salary",
+   "fieldtype": "Data",
+   "label": "Expected Monthly Salary"
+  },
+  {
+   "fieldname": "highest_education",
+   "fieldtype": "Select",
+   "label": "Educational Qualification",
+   "options": "\nPrimary School\nMiddle School\nHigh School\nDiploma\nBachelor's Degree\nOther"
+  },
+  {
+   "fieldname": "col_break_job",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "english_level",
+   "fieldtype": "Select",
+   "label": "English Language Level",
+   "options": "\nNone\nBasic\nFair\nFluent"
+  },
+  {
+   "fieldname": "arabic_level",
+   "fieldtype": "Select",
+   "label": "Arabic Language Level",
+   "options": "\nNone\nBasic\nFair\nFluent"
+  },
+  {
+   "fieldname": "experience_country",
+   "fieldtype": "Data",
+   "label": "Previous Work Country"
+  },
+  {
+   "fieldname": "experience_period",
+   "fieldtype": "Data",
+   "label": "Work Experience Period"
+  },
+  {
+   "fieldname": "skills_sec",
+   "fieldtype": "Section Break",
+   "label": "Skills & Practical Experience"
+  },
+  {
+   "fieldname": "skill_cleaning",
+   "fieldtype": "Select",
+   "label": "Cleaning",
+   "options": "\nYES\nNO"
+  },
+  {
+   "fieldname": "skill_washing",
+   "fieldtype": "Select",
+   "label": "Washing",
+   "options": "\nYES\nNO"
+  },
+  {
+   "fieldname": "skill_ironing",
+   "fieldtype": "Select",
+   "label": "Ironing",
+   "options": "\nYES\nNO"
+  },
+  {
+   "fieldname": "skill_baby_sitting",
+   "fieldtype": "Select",
+   "label": "Baby Sitting",
+   "options": "\nYES\nNO"
+  },
+  {
+   "fieldname": "col_break_skills",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "skill_children_care",
+   "fieldtype": "Select",
+   "label": "Children Care",
+   "options": "\nYES\nNO"
+  },
+  {
+   "fieldname": "skill_cooking",
+   "fieldtype": "Select",
+   "label": "Cooking",
+   "options": "\nYES\nNO"
+  },
+  {
+   "fieldname": "skill_arabic_cooking",
+   "fieldtype": "Select",
+   "label": "Arabic Cooking",
+   "options": "\nYES\nNO"
+  },
+  {
+   "fieldname": "skill_sewing",
+   "fieldtype": "Select",
+   "label": "Sewing",
+   "options": "\nYES\nNO"
+  },
+  {
+   "fieldname": "skill_elderly_care",
+   "fieldtype": "Select",
+   "label": "Elderly Care",
+   "options": "\nYES\nNO"
   },
   {
    "fieldname": "contact_info_sec",
@@ -219,48 +454,18 @@
   {
    "fieldname": "remarks",
    "fieldtype": "Small Text",
-   "label": "General Remarks"
-  },
-  {
-   "fieldname": "identification_sec",
-   "fieldtype": "Section Break",
-   "label": "Identification"
-  },
-  {
-   "fieldname": "passport_number",
-   "fieldtype": "Data",
-   "label": "Passport Number"
-  },
-  {
-   "fieldname": "passport_expiry",
-   "fieldtype": "Date",
-   "label": "Passport Expiry Date"
-  },
-  {
-   "fieldname": "col_break_id",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "national_id",
-   "fieldtype": "Data",
-   "label": "National ID Number"
-  },
-  {
-   "fieldname": "labour_id",
-   "fieldtype": "Data",
-   "label": "Labour ID Number"
+   "label": "General Remarks / Code (e.g. FED)"
   },
   {
    "fieldname": "coc_sec",
    "fieldtype": "Section Break",
-   "label": "COC Assessment"
+   "label": "COC / Skill Certification"
   },
   {
-   "default": "Pending",
    "fieldname": "coc_status",
    "fieldtype": "Select",
    "label": "COC Status",
-   "options": "Pending\nIssued\nNot Started"
+   "options": "\nIssued\nPending"
   },
   {
    "fieldname": "exam_date",
@@ -273,26 +478,25 @@
   },
   {
    "fieldname": "exam_remaining_days",
-   "fieldtype": "Int",
+   "fieldtype": "Data",
    "label": "Exam Remaining Days",
    "read_only": 1
   },
   {
    "fieldname": "medical_sec",
    "fieldtype": "Section Break",
-   "label": "Medical Information"
+   "label": "Medical Clearance"
   },
   {
-   "default": "Pending",
    "fieldname": "medical_status",
    "fieldtype": "Select",
    "label": "Medical Status",
-   "options": "FIT\nUNFIT\nPending"
+   "options": "\nFIT\nUNFIT\nPending"
   },
   {
    "fieldname": "medical_expiry_date",
    "fieldtype": "Date",
-   "label": "Medical Request Expiration Date"
+   "label": "Medical Expiration Date"
   },
   {
    "fieldname": "col_break_medical",
@@ -300,8 +504,8 @@
   },
   {
    "fieldname": "medical_remaining_days",
-   "fieldtype": "Int",
-   "label": "Medical Remaining Days",
+   "fieldtype": "Data",
+   "label": "Medical Expiry Remaining Days",
    "read_only": 1
   },
   {
@@ -310,49 +514,9 @@
    "label": "Medical Remarks"
   },
   {
-   "fieldname": "education_employment_sec",
-   "fieldtype": "Section Break",
-   "label": "Education & Employment"
-  },
-  {
-   "fieldname": "highest_education",
-   "fieldtype": "Select",
-   "label": "Highest Education Level",
-   "options": "\nHigh School\nAssociate Degree\nBachelor's Degree\nMaster's Degree\nDoctorate\nOther"
-  },
-  {
-   "fieldname": "institution",
-   "fieldtype": "Data",
-   "label": "Institution Name"
-  },
-  {
-   "fieldname": "graduation_year",
-   "fieldtype": "Int",
-   "label": "Graduation Year"
-  },
-  {
-   "fieldname": "education_remarks",
-   "fieldtype": "Small Text",
-   "label": "Education Remarks"
-  },
-  {
-   "fieldname": "col_break_edu_emp",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "current_employer",
-   "fieldtype": "Data",
-   "label": "Current/Last Employer"
-  },
-  {
-   "fieldname": "years_of_experience",
-   "fieldtype": "Float",
-   "label": "Years of Experience"
-  },
-  {
    "fieldname": "internal_info_sec",
    "fieldtype": "Section Break",
-   "label": "Internal Information"
+   "label": "Internal & State Tracking"
   },
   {
    "default": "Draft",
@@ -368,20 +532,21 @@
    "fieldname": "state_step",
    "fieldtype": "Data",
    "in_list_view": 1,
-   "label": "Lifecycle Step",
+   "label": "Pipeline Step",
    "read_only": 1
   },
   {
    "fieldname": "state_progress",
    "fieldtype": "Percent",
-   "label": "Progress (%)",
+   "in_list_view": 1,
+   "label": "Pipeline Progress",
    "read_only": 1
   },
   {
-   "default": "Today",
    "fieldname": "registration_date",
    "fieldtype": "Date",
-   "label": "Registration Date"
+   "label": "Registration Date",
+   "read_only": 1
   },
   {
    "fieldname": "col_break_internal",
@@ -390,8 +555,7 @@
   {
    "fieldname": "cancel_remarks",
    "fieldtype": "Small Text",
-   "label": "Cancellation Remarks",
-   "read_only": 1
+   "label": "Cancellation Remarks"
   },
   {
    "fieldname": "cancelled_at",
@@ -408,8 +572,9 @@
   },
   {
    "fieldname": "missing_data_indicator",
-   "fieldtype": "HTML",
-   "label": "Missing Data Indicator"
+   "fieldtype": "Small Text",
+   "label": "Missing Registration Fields",
+   "read_only": 1
   },
   {
    "fieldname": "financials_sec",
@@ -441,18 +606,18 @@
   {
    "fieldname": "income_expense_logs",
    "fieldtype": "Table",
-   "label": "Income / Expenses",
+   "label": "Income & Expense Logs",
    "options": "Income Expense Log"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-08 09:49:46.765202",
+ "modified": "2026-08-15 00:28:00.000000",
  "modified_by": "Administrator",
  "module": "Applicant Processing",
  "name": "Applicant",
- "naming_rule": "Expression",
+ "naming_rule": "Expression (old style)",
  "owner": "Administrator",
  "permissions": [
   {
@@ -468,13 +633,10 @@
    "write": 1
   }
  ],
- "row_format": "Dynamic",
- "rows_threshold_for_grid_search": 20,
- "search_fields": "full_name,passport_number,phone_number,national_id",
+ "search_fields": "first_name,last_name,full_name,passport_number,phone_number",
  "show_title_field_in_link": 1,
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],
- "title_field": "full_name",
- "track_changes": 1
+ "title_field": "full_name"
 }

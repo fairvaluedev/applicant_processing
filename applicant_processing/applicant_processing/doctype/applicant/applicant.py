@@ -21,26 +21,27 @@ STATE_ORDER = [
 DRAFT_REQUIRED_FIELDS = {
     "first_name": "First Name",
     "last_name": "Last Name",
-    "phone_number": "Phone Number",
     "nationality": "Nationality",
-    "gender": "Gender",
     "religion": "Religion",
-    "marital_status": "Marital Status",
-    "children": "Children (Count)",
+    "marital_status": "Civil / Marital Status",
+    "children": "Number of Children",
+    "phone_number": "Phone Number",
+    "gender": "Gender",
 }
 
 # Required to move from Draft to Registered
 REGISTRATION_REQUIRED_FIELDS = {
-    "date_of_birth": "Date of Birth",
     "passport_number": "Passport Number",
-    "highest_education": "Highest Education Level",
-    "labour_id": "Labour ID",
-    "contact_person_name": "Contact Person Name",
-    "contact_person_phone": "Contact Person Phone",
-    "coc_status": "COC Status",
-    "exam_date": "Exam Date",
+    "passport_issue_date": "Passport Issue Date",
+    "passport_expiry": "Passport Expiry Date",
+    "place_of_issue": "Place of Issue",
+    "job_applied": "Job / Position Applied",
+    "highest_education": "Educational Qualification",
+    "photo_passport": "Small / Passport Photo",
+    "photo_full_body": "Full Body Photo",
+    "passport_scan": "Scanned Passport Copy",
     "medical_status": "Medical Status",
-    "medical_expiry_date": "Medical Request Expiration Date",
+    "medical_expiry_date": "Medical Expiration Date",
 }
 
 
@@ -48,22 +49,34 @@ class Applicant(Document):
     def validate(self):
         # 1. Set full name
         self._set_full_name()
-        # 2. Mandatory data to go to draft state (always required)
+        # 2. Auto-compute age if DOB given
+        self._calculate_age()
+        # 3. Mandatory data to go to draft state (always required)
         self._check_missing(DRAFT_REQUIRED_FIELDS)
-        # 3. Calculate computed fields (Exam remaining days, Medical remaining days)
+        # 4. Calculate computed fields (Exam remaining days, Medical remaining days)
         self._calculate_computed_days()
-        # 4. Calculate lifecycle step and progress percentage
+        # 5. Calculate lifecycle step and progress percentage
         self._calculate_state_progress()
-        # 5. Record cancelling user and timestamp if cancelled
+        # 6. Record cancelling user and timestamp if cancelled
         if self.applicant_state == "Cancelled":
             if not self.cancelled_by:
                 self.cancelled_by = frappe.session.user
             if not self.cancelled_at:
                 self.cancelled_at = frappe.utils.now_datetime()
-        # 6. Flexible data hygiene & formatting
+        # 7. Flexible data hygiene & formatting
         self._validate_pragmatic_data()
-        # 7. Recompute financial totals directly from income_expense_logs
+        # 8. Recompute financial totals directly from income_expense_logs
         self._recalculate_totals()
+
+    def _calculate_age(self):
+        if self.date_of_birth and not self.age:
+            from frappe.utils import getdate, today
+            try:
+                dob = getdate(self.date_of_birth)
+                curr = getdate(today())
+                self.age = curr.year - dob.year - ((curr.month, curr.day) < (dob.month, dob.day))
+            except Exception:
+                pass
 
     def _set_full_name(self):
         parts = [self.first_name, self.middle_name, self.last_name]
@@ -239,11 +252,32 @@ def register_applicant(applicant_name):
     return f"Applicant {applicant_name} is now Registered."
 
 
+def _get_base64_image(file_url):
+    """Converts a Frappe file URL or path into a base64 Data URI for embedding in PDF."""
+    if not file_url:
+        return None
+    if str(file_url).startswith("data:image"):
+        return file_url
+    import base64, mimetypes, os
+    try:
+        clean_path = str(file_url).lstrip("/")
+        site_path = frappe.get_site_path(clean_path)
+        if os.path.exists(site_path):
+            mime_type, _ = mimetypes.guess_type(site_path)
+            mime_type = mime_type or "image/jpeg"
+            with open(site_path, "rb") as f:
+                encoded = base64.b64encode(f.read()).decode("utf-8")
+                return f"data:{mime_type};base64,{encoded}"
+    except Exception:
+        pass
+    return file_url
+
+
 @frappe.whitelist()
 def generate_cv(applicant_name):
     """
-    Generates a PDF CV for the applicant using the system CV template.
-    Blocking condition: applicant must be at least Registered.
+    Generates a PDF CV for the applicant using the 2-page system CV template.
+    Blocking condition: applicant must be at least Registered and medical status not UNFIT.
     Advances applicant state to CV Generated if currently Registered.
     """
     import os
@@ -253,44 +287,83 @@ def generate_cv(applicant_name):
 
     applicant = frappe.get_doc("Applicant", applicant_name)
 
+    if applicant.medical_status == "UNFIT":
+        frappe.throw("Cannot generate CV: Applicant medical status is marked as 'UNFIT'.")
+
     if not applicant._has_reached("Registered"):
         frappe.throw(
             f"Cannot generate CV — applicant must be at least 'Registered'. "
             f"Current state: '{applicant.applicant_state}'"
         )
 
-    # Build template context
+    # Format dates
+    def fmt_d(d):
+        if not d:
+            return ""
+        try:
+            return frappe.utils.formatdate(d, "dd/mm/yyyy")
+        except Exception:
+            return str(d)
+
     full_name = " ".join(filter(None, [
         applicant.first_name,
         getattr(applicant, "middle_name", None),
         applicant.last_name
-    ]))
+    ])).strip()
 
-    generated_date = frappe.utils.now_datetime().strftime("%d %b %Y, %H:%M")
+    generated_date = frappe.utils.now_datetime().strftime("%d/%m/%Y")
+
+    # Encode images as base64 Data URIs
+    photo_passport_b64 = _get_base64_image(applicant.photo_passport)
+    photo_full_body_b64 = _get_base64_image(applicant.photo_full_body)
+    passport_scan_b64 = _get_base64_image(applicant.passport_scan)
 
     context = {
-        "applicant_name":    applicant_name,
-        "cv_name":           "(pending)",
-        "full_name":         full_name,
-        "applicant_state":   applicant.applicant_state,
-        "generated_date":    generated_date,
-        "nationality":       applicant.nationality or "",
-        "gender":            applicant.gender or "",
-        "date_of_birth":     str(applicant.date_of_birth) if applicant.date_of_birth else "",
-        "email":             applicant.email or "",
-        "phone_number":      applicant.phone_number or "",
-        "alternate_phone":   applicant.alternate_phone or "",
-        "address_line_1":    applicant.address_line_1 or "",
-        "city":              applicant.city or "",
-        "country":           applicant.country or "",
-        "passport_number":   applicant.passport_number or "",
-        "passport_expiry":   str(applicant.passport_expiry) if applicant.passport_expiry else "",
-        "national_id":       applicant.national_id or "",
-        "highest_education": applicant.highest_education or "",
-        "institution":       applicant.institution or "",
-        "graduation_year":   applicant.graduation_year or "",
-        "current_employer":  applicant.current_employer or "",
-        "years_of_experience": applicant.years_of_experience or "",
+        "applicant_name":        applicant_name,
+        "cv_name":               "(pending)",
+        "full_name":             full_name.upper(),
+        "first_name":            applicant.first_name or "",
+        "middle_name":           applicant.middle_name or "",
+        "last_name":             applicant.last_name or "",
+        "applicant_state":       applicant.applicant_state,
+        "generated_date":        generated_date,
+        "job_applied":           applicant.job_applied or "House Maid",
+        "monthly_salary":        applicant.monthly_salary or "1,000 SR",
+        "passport_number":       applicant.passport_number or "",
+        "passport_issue_date":   fmt_d(applicant.passport_issue_date),
+        "passport_expiry":       fmt_d(applicant.passport_expiry),
+        "place_of_issue":        applicant.place_of_issue or "ADDIS ABABA",
+        "english_level":         applicant.english_level or "",
+        "arabic_level":          applicant.arabic_level or "",
+        "highest_education":     applicant.highest_education or "Primary School",
+        "nationality":           applicant.nationality or "Ethiopia",
+        "religion":              applicant.religion or "Non-Muslim",
+        "date_of_birth":         fmt_d(applicant.date_of_birth),
+        "place_of_birth":        applicant.place_of_birth or "",
+        "leaving_town":          applicant.leaving_town or "",
+        "marital_status":        applicant.marital_status or "Single",
+        "children":              applicant.children if applicant.children is not None and applicant.children != "" else "",
+        "height":                applicant.height or "",
+        "weight":                applicant.weight or "",
+        "complexion":            applicant.complexion or "FAIR",
+        "age":                   applicant.age or "",
+        "experience_period":     applicant.experience_period or "",
+        "experience_country":    applicant.experience_country or "",
+        "skill_cleaning":        applicant.skill_cleaning or "",
+        "skill_washing":         applicant.skill_washing or "",
+        "skill_ironing":         applicant.skill_ironing or "",
+        "skill_baby_sitting":    applicant.skill_baby_sitting or "",
+        "skill_children_care":   applicant.skill_children_care or "",
+        "skill_cooking":         applicant.skill_cooking or "",
+        "skill_arabic_cooking":  applicant.skill_arabic_cooking or "",
+        "skill_sewing":          applicant.skill_sewing or "",
+        "skill_elderly_care":    applicant.skill_elderly_care or "",
+        "remarks":               applicant.remarks or "FED",
+        "phone_number":          applicant.phone_number or "",
+        "email":                 applicant.email or "",
+        "photo_passport":        photo_passport_b64,
+        "photo_full_body":       photo_full_body_b64,
+        "passport_scan":         passport_scan_b64,
     }
 
     # Render HTML template
@@ -325,14 +398,58 @@ def generate_cv(applicant_name):
 
     pdf_bytes = get_pdf(html, options=pdf_options)
 
-    # Create CV Record
+    # Create CV Record with full snapshot data
     cv_record = frappe.get_doc({
-        "doctype":        "CV Record",
-        "applicant":      applicant_name,
-        "template":       "cv_template.html",
-        "generated_by":   frappe.session.user,
-        "generated_date": frappe.utils.now_datetime(),
-        "status":         "Final",
+        "doctype":               "CV Record",
+        "applicant":             applicant_name,
+        "full_name":             full_name,
+        "first_name":            applicant.first_name,
+        "middle_name":           applicant.middle_name,
+        "last_name":             applicant.last_name,
+        "nationality":           applicant.nationality,
+        "religion":              applicant.religion,
+        "marital_status":        applicant.marital_status,
+        "children":              applicant.children,
+        "age":                   applicant.age,
+        "gender":                applicant.gender,
+        "date_of_birth":         applicant.date_of_birth,
+        "place_of_birth":        applicant.place_of_birth,
+        "leaving_town":          applicant.leaving_town,
+        "height":                applicant.height,
+        "weight":                applicant.weight,
+        "complexion":            applicant.complexion,
+        "photo_passport":        applicant.photo_passport,
+        "photo_full_body":       applicant.photo_full_body,
+        "passport_scan":         applicant.passport_scan,
+        "passport_number":       applicant.passport_number,
+        "passport_issue_date":   applicant.passport_issue_date,
+        "passport_expiry":       applicant.passport_expiry,
+        "place_of_issue":        applicant.place_of_issue,
+        "national_id":           applicant.national_id,
+        "labour_id":             applicant.labour_id,
+        "job_applied":           applicant.job_applied,
+        "monthly_salary":        applicant.monthly_salary,
+        "highest_education":     applicant.highest_education,
+        "english_level":         applicant.english_level,
+        "arabic_level":          applicant.arabic_level,
+        "experience_country":    applicant.experience_country,
+        "experience_period":     applicant.experience_period,
+        "skill_cleaning":        applicant.skill_cleaning,
+        "skill_washing":         applicant.skill_washing,
+        "skill_ironing":         applicant.skill_ironing,
+        "skill_baby_sitting":    applicant.skill_baby_sitting,
+        "skill_children_care":   applicant.skill_children_care,
+        "skill_cooking":         applicant.skill_cooking,
+        "skill_arabic_cooking":  applicant.skill_arabic_cooking,
+        "skill_sewing":          applicant.skill_sewing,
+        "skill_elderly_care":    applicant.skill_elderly_care,
+        "email":                 applicant.email,
+        "phone_number":          applicant.phone_number,
+        "remarks":               applicant.remarks,
+        "template":              "cv_template.html",
+        "generated_by":          frappe.session.user,
+        "generated_date":        frappe.utils.now_datetime(),
+        "status":                "Final",
     })
     cv_record.insert(ignore_permissions=True)
 
@@ -382,24 +499,43 @@ def cancel_applicant(applicant_name, cancel_remarks=None):
 
 
 @frappe.whitelist()
-def restore_applicant(applicant_name):
+def restore_applicant(applicant_name, restore_option="auto"):
     """
     Restores a cancelled applicant back to their active lifecycle stage.
+    restore_option:
+      - 'auto': Recalculates state from downstream records (resumes where left off).
+      - 'beginning' / 'registered': Resets state to Registered (start of processing pipeline).
+      - 'draft': Resets state to Draft.
     """
     applicant = frappe.get_doc("Applicant", applicant_name)
     if applicant.applicant_state != "Cancelled":
         frappe.throw("Applicant is not in Cancelled state.")
 
     # Reset cancellation audit fields
-    applicant.applicant_state = "Registered"  # Temporary baseline for recalculation
     applicant.cancel_remarks = None
     applicant.cancelled_at = None
     applicant.cancelled_by = None
-    applicant.save(ignore_permissions=True)
 
-    # Automatically compute true stage from downstream documents
-    new_state = recalculate_applicant_state(applicant_name)
-    return f"Applicant {applicant_name} restored to state '{new_state}'."
+    option = (restore_option or "auto").lower()
+
+    if option in ["beginning", "registered", "start"]:
+        applicant.applicant_state = "Registered"
+        applicant.save(ignore_permissions=True)
+        new_state = "Registered"
+    elif option == "draft":
+        applicant.applicant_state = "Draft"
+        applicant.save(ignore_permissions=True)
+        new_state = "Draft"
+    else:
+        applicant.applicant_state = "Registered"  # Temporary baseline for recalculation
+        applicant.save(ignore_permissions=True)
+        new_state = recalculate_applicant_state(applicant_name)
+
+    return {
+        "status": "success",
+        "new_state": new_state,
+        "message": f"Applicant {applicant_name} restored to state '{new_state}'."
+    }
 
 
 @frappe.whitelist()
@@ -447,7 +583,7 @@ def recalculate_applicant_state(applicant_name):
             UNION
             SELECT name FROM `tabInjaz Clearance` WHERE dsr IN %(dsrs)s AND employee IS NOT NULL AND employee != ''
             UNION
-            SELECT name FROM `tabLMS Clearance` WHERE dsr IN %(dsrs)s AND status IN ('In Progress', 'Completed')
+            SELECT name FROM `tabLMS Clearance` WHERE dsr IN %(dsrs)s AND status IN ('In Progress', 'Completed', 'Issued')
             UNION
             SELECT name FROM `tabWakala Clearance` WHERE dsr IN %(dsrs)s AND status IN ('In Progress', 'Completed')
             UNION
@@ -477,7 +613,6 @@ def recalculate_applicant_state(applicant_name):
         target_state = "Draft"
 
     if app.applicant_state != target_state:
-        app.applicant_state = target_state
-        app.save(ignore_permissions=True)
+        frappe.db.set_value("Applicant", applicant_name, "applicant_state", target_state, update_modified=False)
 
     return target_state

@@ -24,21 +24,56 @@
   "first_name",
   "middle_name",
   "last_name",
-  "col_break_cv1",
-  "date_of_birth",
-  "gender",
   "nationality",
+  "religion",
+  "marital_status",
+  "children",
+  "age",
+  "col_break_cv1",
+  "gender",
+  "date_of_birth",
+  "place_of_birth",
+  "leaving_town",
+  "height",
+  "weight",
+  "complexion",
+  "photos_sec",
+  "photo_passport",
+  "photo_full_body",
+  "col_break_photos",
+  "passport_scan",
+  "passport_sec",
+  "passport_number",
+  "passport_issue_date",
+  "passport_expiry",
+  "place_of_issue",
+  "col_break_pass",
+  "national_id",
+  "labour_id",
+  "job_edu_sec",
+  "job_applied",
+  "monthly_salary",
+  "highest_education",
+  "col_break_job_edu",
+  "english_level",
+  "arabic_level",
+  "experience_country",
+  "experience_period",
+  "skills_sec",
+  "skill_cleaning",
+  "skill_washing",
+  "skill_ironing",
+  "skill_baby_sitting",
+  "col_break_skills",
+  "skill_children_care",
+  "skill_cooking",
+  "skill_arabic_cooking",
+  "skill_sewing",
+  "skill_elderly_care",
   "contact_sec",
   "email",
   "phone_number",
-  "col_break_cv2",
-  "passport_number",
-  "passport_expiry",
-  "national_id",
-  "education_sec",
-  "highest_education",
-  "institution",
-  "graduation_year",
+  "remarks",
   "financials_sec",
   "financials"
  ],
@@ -131,7 +166,7 @@
   {
    "fieldname": "applicant_data_sec",
    "fieldtype": "Section Break",
-   "label": "Applicant Data"
+   "label": "Applicant Profile Snapshot"
   },
   {
    "fieldname": "first_name",
@@ -154,8 +189,44 @@
    "read_only": 1
   },
   {
+   "fieldname": "nationality",
+   "fieldtype": "Data",
+   "label": "Nationality",
+   "read_only": 1
+  },
+  {
+   "fieldname": "religion",
+   "fieldtype": "Data",
+   "label": "Religion",
+   "read_only": 1
+  },
+  {
+   "fieldname": "marital_status",
+   "fieldtype": "Data",
+   "label": "Civil / Marital Status",
+   "read_only": 1
+  },
+  {
+   "fieldname": "children",
+   "fieldtype": "Int",
+   "label": "Number of Children",
+   "read_only": 1
+  },
+  {
+   "fieldname": "age",
+   "fieldtype": "Int",
+   "label": "Age",
+   "read_only": 1
+  },
+  {
    "fieldname": "col_break_cv1",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "gender",
+   "fieldtype": "Data",
+   "label": "Gender",
+   "read_only": 1
   },
   {
    "fieldname": "date_of_birth",
@@ -164,16 +235,219 @@
    "read_only": 1
   },
   {
-   "fieldname": "gender",
-   "fieldtype": "Select",
-   "label": "Gender",
-   "options": "Male\nFemale\nOther",
+   "fieldname": "place_of_birth",
+   "fieldtype": "Data",
+   "label": "Place of Birth",
    "read_only": 1
   },
   {
-   "fieldname": "nationality",
+   "fieldname": "leaving_town",
    "fieldtype": "Data",
-   "label": "Nationality",
+   "label": "Leaving Town",
+   "read_only": 1
+  },
+  {
+   "fieldname": "height",
+   "fieldtype": "Data",
+   "label": "Height",
+   "read_only": 1
+  },
+  {
+   "fieldname": "weight",
+   "fieldtype": "Data",
+   "label": "Weight",
+   "read_only": 1
+  },
+  {
+   "fieldname": "complexion",
+   "fieldtype": "Data",
+   "label": "Complexion",
+   "read_only": 1
+  },
+  {
+   "fieldname": "photos_sec",
+   "fieldtype": "Section Break",
+   "label": "Photos & Attachments"
+  },
+  {
+   "fieldname": "photo_passport",
+   "fieldtype": "Attach Image",
+   "label": "Small / Passport Photo",
+   "read_only": 1
+  },
+  {
+   "fieldname": "photo_full_body",
+   "fieldtype": "Attach Image",
+   "label": "Full Body Photo",
+   "read_only": 1
+  },
+  {
+   "fieldname": "col_break_photos",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "passport_scan",
+   "fieldtype": "Attach Image",
+   "label": "Scanned Passport Copy",
+   "read_only": 1
+  },
+  {
+   "fieldname": "passport_sec",
+   "fieldtype": "Section Break",
+   "label": "Passport & Identification"
+  },
+  {
+   "fieldname": "passport_number",
+   "fieldtype": "Data",
+   "label": "Passport Number",
+   "read_only": 1
+  },
+  {
+   "fieldname": "passport_issue_date",
+   "fieldtype": "Date",
+   "label": "Passport Issue Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "passport_expiry",
+   "fieldtype": "Date",
+   "label": "Passport Expiry Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "place_of_issue",
+   "fieldtype": "Data",
+   "label": "Place of Issue",
+   "read_only": 1
+  },
+  {
+   "fieldname": "col_break_pass",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "national_id",
+   "fieldtype": "Data",
+   "label": "National ID Number",
+   "read_only": 1
+  },
+  {
+   "fieldname": "labour_id",
+   "fieldtype": "Data",
+   "label": "Labour ID",
+   "read_only": 1
+  },
+  {
+   "fieldname": "job_edu_sec",
+   "fieldtype": "Section Break",
+   "label": "Job, Education & Languages"
+  },
+  {
+   "fieldname": "job_applied",
+   "fieldtype": "Data",
+   "label": "Job / Position",
+   "read_only": 1
+  },
+  {
+   "fieldname": "monthly_salary",
+   "fieldtype": "Data",
+   "label": "Monthly Salary",
+   "read_only": 1
+  },
+  {
+   "fieldname": "highest_education",
+   "fieldtype": "Data",
+   "label": "Educational Qualification",
+   "read_only": 1
+  },
+  {
+   "fieldname": "col_break_job_edu",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "english_level",
+   "fieldtype": "Data",
+   "label": "English Level",
+   "read_only": 1
+  },
+  {
+   "fieldname": "arabic_level",
+   "fieldtype": "Data",
+   "label": "Arabic Level",
+   "read_only": 1
+  },
+  {
+   "fieldname": "experience_country",
+   "fieldtype": "Data",
+   "label": "Work Country",
+   "read_only": 1
+  },
+  {
+   "fieldname": "experience_period",
+   "fieldtype": "Data",
+   "label": "Work Period",
+   "read_only": 1
+  },
+  {
+   "fieldname": "skills_sec",
+   "fieldtype": "Section Break",
+   "label": "Skills & Experience"
+  },
+  {
+   "fieldname": "skill_cleaning",
+   "fieldtype": "Data",
+   "label": "Cleaning",
+   "read_only": 1
+  },
+  {
+   "fieldname": "skill_washing",
+   "fieldtype": "Data",
+   "label": "Washing",
+   "read_only": 1
+  },
+  {
+   "fieldname": "skill_ironing",
+   "fieldtype": "Data",
+   "label": "Ironing",
+   "read_only": 1
+  },
+  {
+   "fieldname": "skill_baby_sitting",
+   "fieldtype": "Data",
+   "label": "Baby Sitting",
+   "read_only": 1
+  },
+  {
+   "fieldname": "col_break_skills",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "skill_children_care",
+   "fieldtype": "Data",
+   "label": "Children Care",
+   "read_only": 1
+  },
+  {
+   "fieldname": "skill_cooking",
+   "fieldtype": "Data",
+   "label": "Cooking",
+   "read_only": 1
+  },
+  {
+   "fieldname": "skill_arabic_cooking",
+   "fieldtype": "Data",
+   "label": "Arabic Cooking",
+   "read_only": 1
+  },
+  {
+   "fieldname": "skill_sewing",
+   "fieldtype": "Data",
+   "label": "Sewing",
+   "read_only": 1
+  },
+  {
+   "fieldname": "skill_elderly_care",
+   "fieldtype": "Data",
+   "label": "Elderly Care",
    "read_only": 1
   },
   {
@@ -194,49 +468,9 @@
    "read_only": 1
   },
   {
-   "fieldname": "col_break_cv2",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "passport_number",
-   "fieldtype": "Data",
-   "label": "Passport Number",
-   "read_only": 1
-  },
-  {
-   "fieldname": "passport_expiry",
-   "fieldtype": "Date",
-   "label": "Passport Expiry Date",
-   "read_only": 1
-  },
-  {
-   "fieldname": "national_id",
-   "fieldtype": "Data",
-   "label": "National ID Number",
-   "read_only": 1
-  },
-  {
-   "fieldname": "education_sec",
-   "fieldtype": "Section Break",
-   "label": "Education"
-  },
-  {
-   "fieldname": "highest_education",
-   "fieldtype": "Select",
-   "label": "Highest Education Level",
-   "options": "\nHigh School\nAssociate Degree\nBachelor's Degree\nMaster's Degree\nDoctorate\nOther",
-   "read_only": 1
-  },
-  {
-   "fieldname": "institution",
-   "fieldtype": "Data",
-   "label": "Institution Name",
-   "read_only": 1
-  },
-  {
-   "fieldname": "graduation_year",
-   "fieldtype": "Int",
-   "label": "Graduation Year",
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks",
    "read_only": 1
   },
   {
@@ -254,7 +488,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-10 23:12:00.000000",
+ "modified": "2026-08-15 00:10:00.000000",
  "modified_by": "Administrator",
  "module": "Applicant Processing",
  "name": "CV Record",

@@ -1,0 +1,8 @@
+.git
+.github
+.pre-commit-config.yaml
+.eslintrc
+.editorconfig
+__pycache__
+*.pyc
+scratch/

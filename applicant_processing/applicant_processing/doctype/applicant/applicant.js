@@ -40,6 +40,21 @@ frappe.ui.form.on("Applicant", {
         calculate_applicant_computed_days(frm);
     },
 
+    date_of_birth(frm) {
+        if (frm.doc.date_of_birth) {
+            const dob = new Date(frm.doc.date_of_birth);
+            const today = new Date();
+            let age = today.getFullYear() - dob.getFullYear();
+            const m = today.getMonth() - dob.getMonth();
+            if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
+                age--;
+            }
+            if (age > 0) {
+                frm.set_value("age", age);
+            }
+        }
+    },
+
     refresh(frm) {
         // State field is always read-only — system controls it
         frm.set_df_property("applicant_state", "read_only", 1);
@@ -60,14 +75,15 @@ frappe.ui.form.on("Applicant", {
             frm.add_custom_button(__("Register Applicant"), function () {
                 // Client-side quick check for missing registration fields
                 const reg_fields = [
-                    { field: "date_of_birth", label: "Date of Birth" },
                     { field: "passport_number", label: "Passport Number" },
-                    { field: "highest_education", label: "Highest Education Level" },
-                    { field: "labour_id", label: "Labour ID" },
-                    { field: "contact_person_name", label: "Contact Person Name" },
-                    { field: "contact_person_phone", label: "Contact Person Phone" },
-                    { field: "coc_status", label: "COC Status" },
-                    { field: "exam_date", label: "COC Exam Date" },
+                    { field: "passport_issue_date", label: "Passport Issue Date" },
+                    { field: "passport_expiry", label: "Passport Expiry Date" },
+                    { field: "place_of_issue", label: "Place of Issue" },
+                    { field: "job_applied", label: "Job / Position Applied" },
+                    { field: "highest_education", label: "Educational Qualification" },
+                    { field: "photo_passport", label: "Small / Passport Photo" },
+                    { field: "photo_full_body", label: "Full Body Photo" },
+                    { field: "passport_scan", label: "Scanned Passport Copy" },
                     { field: "medical_status", label: "Medical Status" },
                     { field: "medical_expiry_date", label: "Medical Expiration Date" }
                 ];
@@ -123,6 +139,15 @@ frappe.ui.form.on("Applicant", {
         
         if (eligible_for_cv.includes(state)) {
             frm.add_custom_button(__("Generate CV"), function () {
+                if (frm.doc.medical_status === "UNFIT") {
+                    frappe.msgprint({
+                        title: __("Medical Status UNFIT"),
+                        indicator: "red",
+                        message: __("Cannot generate CV: Medical Status is marked as 'UNFIT'.")
+                    });
+                    return;
+                }
+
                 frappe.confirm(
                     "Generate a PDF CV for this applicant from their current profile data?",
                     function () {
@@ -185,27 +210,41 @@ frappe.ui.form.on("Applicant", {
         // Restore Process action (available for Cancelled applicant)
         if (state === "Cancelled") {
             frm.add_custom_button(__("Restore / Uncancel Process"), function () {
-                frappe.confirm(
-                    __("Are you sure you want to restore this applicant back into the active processing pipeline?"),
-                    function () {
-                        frappe.call({
-                            method: "applicant_processing.applicant_processing.doctype.applicant.applicant.restore_applicant",
-                            args: { applicant_name: frm.doc.name },
-                            freeze: true,
-                            freeze_message: __("Restoring Applicant Process..."),
-                            callback: function (r) {
-                                if (!r.exc) {
-                                    frm.reload_doc();
-                                    frappe.msgprint({
-                                        title: __("Applicant Restored"),
-                                        indicator: "green",
-                                        message: r.message || __("Applicant has been restored.")
-                                    });
-                                }
-                            }
-                        });
+                frappe.prompt([
+                    {
+                        label: __("Restore Option"),
+                        fieldname: "restore_option",
+                        fieldtype: "Select",
+                        options: [
+                            { label: __("Resume from previous stage (Auto-detect)"), value: "auto" },
+                            { label: __("Reset to Registered (Start from beginning)"), value: "registered" },
+                            { label: __("Reset to Draft"), value: "draft" }
+                        ],
+                        default: "auto",
+                        reqd: 1
                     }
-                );
+                ], function (values) {
+                    frappe.call({
+                        method: "applicant_processing.applicant_processing.doctype.applicant.applicant.restore_applicant",
+                        args: {
+                            applicant_name: frm.doc.name,
+                            restore_option: values.restore_option || "auto"
+                        },
+                        freeze: true,
+                        freeze_message: __("Restoring Applicant Process..."),
+                        callback: function (r) {
+                            if (!r.exc) {
+                                frm.reload_doc();
+                                const msg = r.message && r.message.message ? r.message.message : (r.message || __("Applicant has been restored."));
+                                frappe.msgprint({
+                                    title: __("Applicant Restored"),
+                                    indicator: "green",
+                                    message: msg
+                                });
+                            }
+                        }
+                    });
+                }, __("Restore Applicant Process"), __("Restore"));
             }, __("Actions")).addClass("btn-primary");
         }
     }

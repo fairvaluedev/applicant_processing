@@ -103,7 +103,7 @@ def check_clearances_completed(dsr_name):
 	dsr = frappe.get_doc("DSR", dsr_name)
 
 	# Check each clearance status
-	lms_done = (dsr.lms_status == "Completed") or bool(frappe.db.exists("LMS Clearance", {"dsr": dsr_name, "status": "Completed"}))
+	lms_done = (dsr.lms_status in ("Issued", "Completed")) or bool(frappe.db.exists("LMS Clearance", {"dsr": dsr_name, "status": ["in", ["Issued", "Completed"]]}))
 	wakala_done = (dsr.wakala_status == "Completed") or bool(frappe.db.exists("Wakala Clearance", {"dsr": dsr_name, "status": "Completed"}))
 	injaz_done = (dsr.injaz_status == "Completed") or bool(frappe.db.exists("Injaz Clearance", {"dsr": dsr_name, "status": "Completed"}))
 

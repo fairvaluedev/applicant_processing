@@ -24,17 +24,28 @@ class ContractRequest(Document):
 			else:
 				frappe.throw("Applicant is required.")
 
-		# Block if applicant is still in Draft state
-		state = frappe.db.get_value("Applicant", self.applicant, "applicant_state")
-		if state == "Draft":
-			frappe.throw(
-				f"Cannot create a Contract Request — the applicant "
-				f"is still in Draft state."
-			)
+		# Block if applicant is UNFIT or in Draft/Registered state without CV
+		if self.applicant and frappe.db.exists("Applicant", self.applicant):
+			app = frappe.get_doc("Applicant", self.applicant)
+			if app.medical_status == "UNFIT":
+				frappe.throw(
+					f"Cannot create Contract Request for Applicant {self.applicant} — Medical status is marked as 'UNFIT'."
+				)
+			if app.applicant_state in ["Draft", "Registered"]:
+				frappe.throw(
+					f"Cannot create Contract Request — Applicant {self.applicant} "
+					f"is in '{app.applicant_state}' state. CV must be generated first."
+				)
 
 		if not self.cv_reference:
 			frappe.throw("CV Reference is required.")
 		cv = frappe.get_doc("CV Record", self.cv_reference)
+		if not cv.file_attachment:
+			frappe.throw(
+				f"Cannot create Contract Request — CV Record {self.cv_reference} "
+				f"does not have a generated CV PDF file. Please generate the CV first."
+			)
+
 		# Ensure applicant matches CV
 		if self.applicant != cv.applicant:
 			frappe.throw("Applicant does not match the CV Record's Applicant.")
@@ -72,6 +83,21 @@ def send_contract_request(contract_request_name):
 	
 	if not cr.contractor:
 		frappe.throw("Please select a Contractor before sending the Contract Request.")
+
+	# Validate Applicant readiness & medical fitness
+	if cr.applicant and frappe.db.exists("Applicant", cr.applicant):
+		app = frappe.get_doc("Applicant", cr.applicant)
+		if app.medical_status == "UNFIT":
+			frappe.throw(f"Cannot send Contract Request for Applicant {cr.applicant}: Medical status is marked as 'UNFIT'.")
+		if app.applicant_state in ["Draft", "Registered"]:
+			frappe.throw(f"Cannot send Contract Request for Applicant {cr.applicant}: Applicant is in '{app.applicant_state}' state. CV has not been generated yet.")
+
+	if not cr.cv_reference:
+		frappe.throw("Cannot send Contract Request: CV Reference is missing.")
+
+	cv_file = frappe.db.get_value("CV Record", cr.cv_reference, "file_attachment")
+	if not cv_file:
+		frappe.throw(f"Cannot send Contract Request: CV Record {cr.cv_reference} has no generated CV PDF attachment. Please generate the CV first.")
 		
 	contractor = frappe.get_doc("Contractor", cr.contractor)
 	
@@ -149,12 +175,9 @@ def send_contract_request(contract_request_name):
 	msg_text = (
 		f"Hello {contractor.contact_person or contractor.company_name},\n\n"
 		f"A new Contract Request *{cr.name}* has been sent to you for Applicant *{applicant_name}*.\n"
-		f"CV Reference: {cr.cv_reference or 'N/A'}\n"
-		f"Passport: {passport_num or 'N/A'}\n"
+		f"Passport: {passport_num or 'N/A'}\n\n"
+		f"Please review and confirm."
 	)
-	if cv_file_url:
-		msg_text += f"📄 View/Download CV: {cv_file_url}\n"
-	msg_text += "\nPlease review and confirm."
 
 	# Attempt direct Meta WhatsApp Cloud API send (dispatches direct PDF document file into WhatsApp chat)
 	api_sent, api_msg = False, None
@@ -222,6 +245,39 @@ def batch_send_contract_requests(cv_references, contractor):
 
 			cv = frappe.get_doc("CV Record", cv_name)
 			applicant_name = cv.applicant
+
+			# 1. Block if CV has no generated PDF attachment
+			if not cv.file_attachment:
+				failed_count += 1
+				results.append({
+					"cv_reference": cv_name,
+					"applicant": applicant_name,
+					"status": "error",
+					"message": f"CV has not been generated for Applicant {applicant_name}. Please generate the CV first."
+				})
+				continue
+
+			# 2. Block if Applicant is UNFIT or has not reached CV Generated state
+			if applicant_name and frappe.db.exists("Applicant", applicant_name):
+				app = frappe.get_doc("Applicant", applicant_name)
+				if app.medical_status == "UNFIT":
+					failed_count += 1
+					results.append({
+						"cv_reference": cv_name,
+						"applicant": applicant_name,
+						"status": "error",
+						"message": f"Cannot send Contract Request: Applicant {applicant_name} medical status is marked as 'UNFIT'."
+					})
+					continue
+				if app.applicant_state in ["Draft", "Registered"]:
+					failed_count += 1
+					results.append({
+						"cv_reference": cv_name,
+						"applicant": applicant_name,
+						"status": "error",
+						"message": f"Applicant {applicant_name} is in '{app.applicant_state}' state. CV must be generated first."
+					})
+					continue
 
 			# Check if open Contract Request exists for this CV
 			existing_cr = frappe.db.get_value("Contract Request", {"cv_reference": cv_name}, "name")

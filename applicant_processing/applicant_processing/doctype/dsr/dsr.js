@@ -5,7 +5,7 @@ frappe.ui.form.on("DSR", {
 	refresh(frm) {
 		if (frm.is_new()) return;
 
-		const lms_done = frm.doc.lms_status === "Completed";
+		const lms_done = frm.doc.lms_status === "Issued" || frm.doc.lms_status === "Completed";
 		const wakala_done = frm.doc.wakala_status === "Completed";
 		const injaz_done = frm.doc.injaz_status === "Completed";
 
