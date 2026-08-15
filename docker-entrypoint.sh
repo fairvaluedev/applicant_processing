@@ -17,10 +17,32 @@ DB_NAME="${DB_NAME:-${MARIADB_DATABASE:-${MYSQLDATABASE:-frappe}}}"
 DB_USER="${DB_USER:-${MARIADB_USER:-root}}"
 DB_PASSWORD="${DB_PASSWORD:-${MARIADB_PASSWORD:-${MYSQLPASSWORD:-${MARIADB_ROOT_PASSWORD:-root}}}}"
 
-# Support standard Railway Redis environment variables
-REDIS_URL="${REDIS_URL:-${REDIS_PRIVATE_URL:-redis://redis:6379}}"
+# Robust Redis URL construction supporting Railway Redis variables
+if [ -n "$REDISHOST" ]; then
+  if [ -n "$REDISPASSWORD" ]; then
+    REDIS_URL="redis://:${REDISPASSWORD}@${REDISHOST}:${REDISPORT:-6379}"
+  else
+    REDIS_URL="redis://${REDISHOST}:${REDISPORT:-6379}"
+  fi
+elif [ -n "$REDIS_PRIVATE_URL" ]; then
+  REDIS_URL="$REDIS_PRIVATE_URL"
+elif [ -n "$REDIS_URL" ]; then
+  if [[ "$REDIS_URL" != redis://* ]] && [[ "$REDIS_URL" != rediss://* ]]; then
+    REDIS_URL="redis://${REDIS_URL}"
+  fi
+else
+  REDIS_URL="redis://redis:6379"
+fi
+
 REDIS_CACHE_URL="${REDIS_CACHE_URL:-${REDIS_URL}}"
+if [[ "$REDIS_CACHE_URL" != redis://* ]] && [[ "$REDIS_CACHE_URL" != rediss://* ]]; then
+  REDIS_CACHE_URL="redis://${REDIS_CACHE_URL}"
+fi
+
 REDIS_QUEUE_URL="${REDIS_QUEUE_URL:-${REDIS_URL}}"
+if [[ "$REDIS_QUEUE_URL" != redis://* ]] && [[ "$REDIS_QUEUE_URL" != rediss://* ]]; then
+  REDIS_QUEUE_URL="redis://${REDIS_QUEUE_URL}"
+fi
 
 echo "=========================================================="
 echo " Starting Applicant Processing App on Railway"
@@ -29,7 +51,7 @@ echo " Detected:    $DETECTED_DOMAIN"
 echo " Port:        $PORT"
 echo " DB Host:     $DB_HOST:$DB_PORT"
 echo " DB Name:     $DB_NAME"
-echo " DB User:     $DB_USER"
+echo " Redis URL:   $REDIS_URL"
 echo "=========================================================="
 
 cd /home/frappe/frappe-bench
