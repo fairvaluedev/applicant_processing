@@ -42,8 +42,15 @@ mkdir -p /home/frappe/frappe-bench/logs
 # Ensure clean apps.txt
 printf "frappe\napplicant_processing\n" > sites/apps.txt
 
-# Patch Frappe __init__.py so it respects db_user from site_config.json
-sed -i 's/user=local.conf.db_name or db_name/user=local.conf.get("db_user") or local.conf.db_name or db_name/g' /home/frappe/frappe-bench/apps/frappe/frappe/__init__.py 2>/dev/null || true
+# Patch Frappe __init__.py with Python so it respects db_user from site_config.json
+python3 -c "
+import os
+path = '/home/frappe/frappe-bench/apps/frappe/frappe/__init__.py'
+if os.path.exists(path):
+    c = open(path).read()
+    c = c.replace('user=local.conf.db_name or db_name', 'user=local.conf.get(\"db_user\") or local.conf.db_name or db_name')
+    open(path, 'w').write(c)
+" 2>/dev/null || true
 
 # 1. Update common_site_config.json with default_site & Redis URLs
 cat <<EOF > sites/common_site_config.json
@@ -75,35 +82,20 @@ until nc -z -v -w30 "$DB_HOST" "$DB_PORT" 2>/dev/null; do
 done
 echo "Database is reachable!"
 
-# Find working DB credentials
-WORK_USER=""
-WORK_PASS=""
-
-for U in "$DB_USER" "root" "frappe"; do
-  for P in "$DB_PASSWORD" "$MARIADB_ROOT_PASSWORD" "$MARIADB_PASSWORD" "$MYSQLPASSWORD" "$MYSQL_ROOT_PASSWORD" "root" ""; do
-    if mariadb -h "$DB_HOST" -P "$DB_PORT" -u "$U" -p"$P" -e "SELECT 1;" >/dev/null 2>&1; then
-      WORK_USER="$U"
-      WORK_PASS="$P"
-      break 2
-    fi
-  done
+# Find working MariaDB password and synchronize user 'frappe' and 'root' passwords
+for P in "$MARIADB_ROOT_PASSWORD" "$DB_PASSWORD" "$MYSQLPASSWORD" "$MYSQL_ROOT_PASSWORD" "root" ""; do
+  if mariadb -h "$DB_HOST" -P "$DB_PORT" -u root -p"$P" -e "
+    CREATE DATABASE IF NOT EXISTS \`$DB_NAME\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+    CREATE USER IF NOT EXISTS 'frappe'@'%' IDENTIFIED BY '$DB_PASSWORD';
+    ALTER USER 'frappe'@'%' IDENTIFIED BY '$DB_PASSWORD';
+    GRANT ALL PRIVILEGES ON *.* TO 'frappe'@'%' WITH GRANT OPTION;
+    GRANT ALL PRIVILEGES ON \`$DB_NAME\`.* TO 'frappe'@'%' WITH GRANT OPTION;
+    FLUSH PRIVILEGES;
+  " >/dev/null 2>&1; then
+    echo "Root authenticated and synchronized credentials for 'frappe'@'%'."
+    break
+  fi
 done
-
-if [ -n "$WORK_USER" ]; then
-  echo "Successfully authenticated to MariaDB as '$WORK_USER'!"
-  DB_USER="$WORK_USER"
-  DB_PASSWORD="$WORK_PASS"
-fi
-
-# Ensure database exists and grant permissions to both root and frappe
-mariadb -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" -p"$DB_PASSWORD" -e "
-CREATE DATABASE IF NOT EXISTS \`$DB_NAME\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER IF NOT EXISTS 'frappe'@'%' IDENTIFIED BY '$DB_PASSWORD';
-ALTER USER 'frappe'@'%' IDENTIFIED BY '$DB_PASSWORD';
-GRANT ALL PRIVILEGES ON *.* TO 'frappe'@'%' WITH GRANT OPTION;
-GRANT ALL PRIVILEGES ON *.* TO '$DB_USER'@'%' WITH GRANT OPTION;
-FLUSH PRIVILEGES;
-" 2>/dev/null || true
 
 cd /home/frappe/frappe-bench/sites
 
@@ -116,16 +108,17 @@ touch "$SITE_NAME/logs/frappe.log"
 touch "$SITE_NAME/logs/frappe.web.log"
 
 # 4. Check if database is already initialized or fresh
-TABLE_EXISTS=$(mariadb -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" -p"$DB_PASSWORD" -D "$DB_NAME" -e "SHOW TABLES LIKE 'tabDocType';" 2>/dev/null | grep tabDocType || true)
+TABLE_EXISTS=$(mariadb -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" -p"$DB_PASSWORD" -D "$DB_NAME" -e "SHOW TABLES LIKE 'tabDocType';" 2>/dev/null || mariadb -h "$DB_HOST" -P "$DB_PORT" -u "frappe" -p"$DB_PASSWORD" -D "$DB_NAME" -e "SHOW TABLES LIKE 'tabDocType';" 2>/dev/null || true)
 
 if [ -z "$TABLE_EXISTS" ]; then
   echo "=========================================================="
   echo " Fresh database detected. Bootstrapping SQL schema into $DB_NAME..."
   echo "=========================================================="
-  mariadb -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" -p"$DB_PASSWORD" -D "$DB_NAME" < /home/frappe/frappe-bench/apps/frappe/frappe/database/mariadb/framework_mariadb.sql || true
+  mariadb -h "$DB_HOST" -P "$DB_PORT" -u root -p"$DB_PASSWORD" -D "$DB_NAME" < /home/frappe/frappe-bench/apps/frappe/frappe/database/mariadb/framework_mariadb.sql 2>/dev/null || \
+  mariadb -h "$DB_HOST" -P "$DB_PORT" -u frappe -p"$DB_PASSWORD" -D "$DB_NAME" < /home/frappe/frappe-bench/apps/frappe/frappe/database/mariadb/framework_mariadb.sql || true
 fi
 
-# 5. Write site_config.json using the authenticated user
+# 5. Write site_config.json
 cat <<EOF > "$SITE_NAME/site_config.json"
 {
   "db_name": "${DB_NAME}",
@@ -133,7 +126,7 @@ cat <<EOF > "$SITE_NAME/site_config.json"
   "db_type": "mariadb",
   "db_host": "${DB_HOST}",
   "db_port": ${DB_PORT},
-  "db_user": "${DB_USER}"
+  "db_user": "frappe"
 }
 EOF
 
