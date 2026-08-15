@@ -34,6 +34,8 @@ echo "=========================================================="
 
 cd /home/frappe/frappe-bench
 
+export PYTHONPATH="/home/frappe/frappe-bench/apps/frappe:/home/frappe/frappe-bench/apps/applicant_processing:/home/frappe/frappe-bench/sites:${PYTHONPATH}"
+
 # 1. Update common_site_config.json with default_site & Redis URLs
 cat <<EOF > sites/common_site_config.json
 {
@@ -64,13 +66,29 @@ until nc -z -v -w30 "$DB_HOST" "$DB_PORT" 2>/dev/null; do
 done
 echo "Database is reachable!"
 
-# 3. Setup Site Config & Database
-mkdir -p "sites/$SITE_NAME"
-SITE_CONFIG="sites/$SITE_NAME/site_config.json"
+# 3. Check if database is already initialized or fresh
+TABLE_EXISTS=$(mariadb -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" -p"$DB_PASSWORD" -D "$DB_NAME" -e "SHOW TABLES LIKE 'tabDocType';" 2>/dev/null | grep tabDocType || true)
 
-if [ ! -f "$SITE_CONFIG" ]; then
-  echo "Creating new site config for $SITE_NAME..."
-  cat <<EOF > "$SITE_CONFIG"
+if [ -z "$TABLE_EXISTS" ]; then
+  echo "=========================================================="
+  echo " Fresh database detected. Creating & initializing site: $SITE_NAME..."
+  echo "=========================================================="
+  bench new-site "$SITE_NAME" \
+    --db-host "$DB_HOST" \
+    --db-port "$DB_PORT" \
+    --db-name "$DB_NAME" \
+    --db-password "$DB_PASSWORD" \
+    --admin-password "$ADMIN_PASSWORD" \
+    --install-app applicant_processing \
+    --no-mariadb-socket \
+    --set-default \
+    --force
+else
+  echo "=========================================================="
+  echo " Existing database detected. Running migrations for: $SITE_NAME..."
+  echo "=========================================================="
+  mkdir -p "sites/$SITE_NAME"
+  cat <<EOF > "sites/$SITE_NAME/site_config.json"
 {
   "db_name": "${DB_NAME}",
   "db_password": "${DB_PASSWORD}",
@@ -80,6 +98,11 @@ if [ ! -f "$SITE_CONFIG" ]; then
   "db_user": "${DB_USER}"
 }
 EOF
+  bench --site "$SITE_NAME" migrate || true
+  bench --site "$SITE_NAME" install-app applicant_processing || true
+  if [ -n "$ADMIN_PASSWORD" ]; then
+    bench --site "$SITE_NAME" set-admin-password "$ADMIN_PASSWORD" || true
+  fi
 fi
 
 # Link any detected domain alias to the site folder
@@ -88,25 +111,12 @@ if [ -n "$DETECTED_DOMAIN" ] && [ "$DETECTED_DOMAIN" != "$SITE_NAME" ]; then
   ln -sfn "$SITE_NAME" "sites/$DETECTED_DOMAIN" || true
 fi
 
-# Set default site
 echo "$SITE_NAME" > sites/currentsite.txt
 
-echo "Running migrations for site: $SITE_NAME..."
-bench --site "$SITE_NAME" migrate || true
-
-echo "Ensuring applicant_processing is installed on $SITE_NAME..."
-bench --site "$SITE_NAME" install-app applicant_processing || true
-
-# 4. Set Administrator password if specified
-if [ -n "$ADMIN_PASSWORD" ]; then
-  bench --site "$SITE_NAME" set-admin-password "$ADMIN_PASSWORD" || true
-fi
-
 echo "=========================================================="
-echo " Setup complete! Starting Gunicorn Web Server on port $PORT..."
+echo " Starting production web server on 0.0.0.0:$PORT..."
 echo "=========================================================="
 
-# Start Gunicorn in foreground
 exec ./env/bin/gunicorn \
   --bind "0.0.0.0:${PORT}" \
   --workers 2 \
