@@ -27,9 +27,89 @@ function calculate_applicant_computed_days(frm) {
     }
 }
 
+function apply_passport_mrz_data(frm, data) {
+    if (!data) return;
+
+    let updated_fields = [];
+
+    if (data.passport_number && frm.doc.passport_number !== data.passport_number) {
+        frm.set_value("passport_number", data.passport_number);
+        updated_fields.push("Passport Number: " + data.passport_number);
+    }
+    if (data.first_name && frm.doc.first_name !== data.first_name) {
+        frm.set_value("first_name", data.first_name);
+        updated_fields.push("First Name: " + data.first_name);
+    }
+    if (data.middle_name && frm.doc.middle_name !== data.middle_name) {
+        frm.set_value("middle_name", data.middle_name);
+        updated_fields.push("Middle Name: " + data.middle_name);
+    }
+    if (data.last_name && frm.doc.last_name !== data.last_name) {
+        frm.set_value("last_name", data.last_name);
+        updated_fields.push("Last Name: " + data.last_name);
+    }
+    if (data.nationality && frm.doc.nationality !== data.nationality) {
+        frm.set_value("nationality", data.nationality);
+        updated_fields.push("Nationality: " + data.nationality);
+    }
+    if (data.date_of_birth && frm.doc.date_of_birth !== data.date_of_birth) {
+        frm.set_value("date_of_birth", data.date_of_birth);
+        updated_fields.push("Date of Birth: " + data.date_of_birth);
+    }
+    if (data.gender && frm.doc.gender !== data.gender) {
+        frm.set_value("gender", data.gender);
+        updated_fields.push("Gender: " + data.gender);
+    }
+    if (data.passport_expiry && frm.doc.passport_expiry !== data.passport_expiry) {
+        frm.set_value("passport_expiry", data.passport_expiry);
+        updated_fields.push("Passport Expiry: " + data.passport_expiry);
+    }
+    if (data.place_of_issue && frm.doc.place_of_issue !== data.place_of_issue) {
+        frm.set_value("place_of_issue", data.place_of_issue);
+        updated_fields.push("Place of Issue: " + data.place_of_issue);
+    }
+    if (data.national_id && !frm.doc.national_id) {
+        frm.set_value("national_id", data.national_id);
+        updated_fields.push("National ID: " + data.national_id);
+    }
+
+    if (updated_fields.length > 0) {
+        frappe.msgprint({
+            title: __("Passport Data Extracted (MRZ + Checksum Validated)"),
+            indicator: "green",
+            message: __("The following fields were auto-populated from the passport scan:") + "<br><br>• <strong>" + updated_fields.join("</strong><br>• <strong>") + "</strong>"
+        });
+    }
+}
+
 frappe.ui.form.on("Applicant", {
     onload_post_render(frm) {
         calculate_applicant_computed_days(frm);
+    },
+
+    passport_scan(frm) {
+        if (frm.doc.passport_scan) {
+            frappe.show_progress(__("Scanning Passport..."), 30, 100, __("Running MRZ-Targeted OCR & Checksum Decoder"));
+            frappe.call({
+                method: "applicant_processing.applicant_processing.doctype.applicant.applicant.scan_and_populate_passport",
+                args: {
+                    file_url: frm.doc.passport_scan,
+                    applicant_name: frm.is_new() ? null : frm.doc.name
+                },
+
+                callback: function (r) {
+                    frappe.hide_progress();
+                    if (!r.exc && r.message && r.message.status === "success") {
+                        apply_passport_mrz_data(frm, r.message.data);
+                    } else if (r.message && r.message.status === "error") {
+                        frappe.show_alert({
+                            message: r.message.message || __("Could not detect MRZ from passport image."),
+                            indicator: "orange"
+                        }, 5);
+                    }
+                }
+            });
+        }
     },
 
     exam_date(frm) {
@@ -66,9 +146,123 @@ frappe.ui.form.on("Applicant", {
         // Show cancellation fields only when cancelled or when remarks exist
         frm.toggle_display(["cancel_remarks", "cancelled_at", "cancelled_by"], frm.doc.applicant_state === "Cancelled" || !!frm.doc.cancel_remarks);
 
+        // Auto-load & initialize Chrome Desktop Notifications
+        frappe.require("/assets/applicant_processing/js/web_push.js", function () {
+            if (window.ApplicantWebPush) {
+                window.ApplicantWebPush.init();
+            }
+        });
+
+        // Notifications action group on form header
+        frm.add_custom_button(__("Enable Desktop Alerts (Chrome)"), function () {
+            frappe.require("/assets/applicant_processing/js/web_push.js", function () {
+                window.ApplicantWebPush.subscribeUser(true);
+            });
+        }, __("Notifications"));
+
+        frm.add_custom_button(__("Test Desktop Notification"), function () {
+            frappe.require("/assets/applicant_processing/js/web_push.js", function () {
+                window.ApplicantWebPush.sendTestPush();
+            });
+        }, __("Notifications"));
+
+        // Action button to Upload & Scan Passport - Available BEFORE saving Draft and on existing records!
+        frm.add_custom_button(__("Upload & Scan Passport"), function () {
+            new frappe.ui.FileUploader({
+                folder: "Home/Attachments",
+                allow_multiple: false,
+                restrictions: {
+                    allowed_file_types: ["image/*", ".pdf"]
+                },
+                on_success: (file_doc) => {
+                    frm.set_value("passport_scan", file_doc.file_url);
+                    frappe.show_progress(__("Scanning Passport..."), 30, 100, __("Running MRZ-Targeted OCR & Checksum Decoder"));
+                    frappe.call({
+                        method: "applicant_processing.applicant_processing.doctype.applicant.applicant.scan_and_populate_passport",
+                        args: {
+                            file_url: file_doc.file_url,
+                            applicant_name: frm.is_new() ? null : frm.doc.name
+                        },
+                        callback: function (r) {
+                            frappe.hide_progress();
+                            if (!r.exc && r.message && r.message.status === "success") {
+                                apply_passport_mrz_data(frm, r.message.data);
+                            } else if (r.message && r.message.status === "error") {
+                                frappe.msgprint({
+                                    title: __("Passport Scan Result"),
+                                    indicator: "orange",
+                                    message: r.message.message || __("Could not detect MRZ from passport image.")
+                                });
+                            }
+                        }
+                    });
+                }
+            });
+        }).addClass("btn-primary");
+
+        // Action button to re-scan already uploaded passport_scan
+        if (frm.doc.passport_scan) {
+            frm.add_custom_button(__("Scan Passport (OCR)"), function () {
+                frappe.show_progress(__("Scanning Passport..."), 30, 100, __("Running MRZ-Targeted OCR & Checksum Decoder"));
+                frappe.call({
+                    method: "applicant_processing.applicant_processing.doctype.applicant.applicant.scan_and_populate_passport",
+                    args: {
+                        file_url: frm.doc.passport_scan,
+                        applicant_name: frm.is_new() ? null : frm.doc.name
+                    },
+                    callback: function (r) {
+                        frappe.hide_progress();
+                        if (!r.exc && r.message && r.message.status === "success") {
+                            apply_passport_mrz_data(frm, r.message.data);
+                        } else if (r.message && r.message.status === "error") {
+                            frappe.msgprint({
+                                title: __("Passport Scan Result"),
+                                indicator: "orange",
+                                message: (r.message.message || __("Could not detect MRZ from passport image.")) +
+                                    "<br><br>" + __("Tip: You can also use <strong>Actions > Paste MRZ Text</strong> to decode and validate instantly.")
+                            });
+                        }
+                    }
+                });
+            }, __("Actions"));
+        }
+
+        // Action button to Paste / Decode Raw MRZ Text directly (100% reliable fallback)
+        frm.add_custom_button(__("Paste MRZ Text"), function () {
+            frappe.prompt([
+                {
+                    label: __("Passport MRZ Lines (2 lines of 44 characters, e.g. PQETH...)"),
+                    fieldname: "raw_mrz_text",
+                    fieldtype: "Code",
+                    options: "Text",
+                    reqd: 1,
+                    description: __("Paste the 2 bottom lines from the passport (e.g. Line 1: PQETH... Line 2: EQ257...)")
+                }
+            ], function (values) {
+                frappe.call({
+                    method: "applicant_processing.applicant_processing.doctype.applicant.applicant.scan_and_populate_passport",
+                    args: {
+                        raw_mrz_text: values.raw_mrz_text,
+                        applicant_name: frm.is_new() ? null : frm.doc.name
+                    },
+                    callback: function (r) {
+                        if (!r.exc && r.message && r.message.status === "success") {
+                            apply_passport_mrz_data(frm, r.message.data);
+                        } else {
+                            frappe.msgprint({
+                                title: __("MRZ Decode Failed"),
+                                indicator: "red",
+                                message: r.message ? r.message.message : __("Invalid MRZ line format.")
+                            });
+                        }
+                    }
+                });
+            }, __("Decode Passport MRZ Text"), __("Decode & Populate"));
+        }, __("Actions"));
+
+
         if (frm.is_new()) return;
 
-        // --- Action Buttons based on current state ---
         const state = frm.doc.applicant_state;
 
         if (state === "Draft") {

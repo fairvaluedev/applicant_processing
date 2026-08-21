@@ -3,23 +3,55 @@
 
 frappe.ui.form.on("Applicant Dossier", {
     refresh(frm) {
-        if (!frm.is_new() && frm.doc.docstatus === 0 && !frm.doc.is_parsed) { // Draft and not parsed
+        // Auto-load & initialize Chrome Desktop Notifications
+        frappe.require("/assets/applicant_processing/js/web_push.js", function () {
+            if (window.ApplicantWebPush) {
+                window.ApplicantWebPush.init();
+            }
+        });
+
+        // Notifications action group
+        frm.add_custom_button(__("Enable Desktop Alerts (Chrome)"), function () {
+            frappe.require("/assets/applicant_processing/js/web_push.js", function () {
+                window.ApplicantWebPush.subscribeUser(true);
+            });
+        }, __("Notifications"));
+
+        frm.add_custom_button(__("Test Desktop Notification"), function () {
+            frappe.require("/assets/applicant_processing/js/web_push.js", function () {
+                window.ApplicantWebPush.sendTestPush();
+            });
+        }, __("Notifications"));
+
+        if (!frm.is_new() && frm.doc.docstatus === 0) {
             if (frm.doc.attached_file) {
-                frm.add_custom_button(__("Parse File"), function () {
+                frm.add_custom_button(__("Parse Contract (PyMuPDF)"), function () {
                     frappe.call({
                         method: "applicant_processing.applicant_processing.doctype.applicant_dossier.applicant_dossier.parse_dossier_file",
                         args: { dossier_name: frm.doc.name },
                         freeze: true,
-                        freeze_message: "Parsing document...",
+                        freeze_message: __("Extracting & Structuring Contract Data via PyMuPDF..."),
                         callback: function(r) {
                             if (!r.exc) {
-                                frappe.show_alert({message: r.message, indicator: 'green'});
+                                frappe.show_alert({
+                                    message: r.message || __("Contract parsed successfully!"),
+                                    indicator: 'green'
+                                }, 6);
                                 frm.reload_doc();
                             }
                         }
                     });
                 }, __("Actions")).addClass("btn-primary");
             }
+        }
+    },
+
+    attached_file(frm) {
+        if (frm.doc.attached_file && !frm.doc.is_parsed && !frm.is_new()) {
+            frappe.show_alert({
+                message: __("Contract attached. Click 'Parse Contract (PyMuPDF)' in Actions to extract details."),
+                indicator: 'blue'
+            }, 5);
         }
     },
 

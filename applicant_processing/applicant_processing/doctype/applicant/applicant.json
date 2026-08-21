@@ -8,6 +8,8 @@
  "engine": "InnoDB",
  "field_order": [
   "personal_info_sec",
+  "applicant_type",
+  "destination_country",
   "first_name",
   "middle_name",
   "last_name",
@@ -41,10 +43,13 @@
   "job_experience_sec",
   "job_applied",
   "monthly_salary",
+  "salary_currency",
+  "contract_period",
   "highest_education",
   "col_break_job",
   "english_level",
   "arabic_level",
+  "local_languages",
   "experience_country",
   "experience_period",
   "skills_sec",
@@ -62,8 +67,9 @@
   "phone_number",
   "alternate_phone",
   "email",
-  "region",
-  "sub_region",
+  "emergency_contact_name",
+  "emergency_contact_phone",
+  "emergency_relationship",
   "col_break_contact",
   "address_line_1",
   "city",
@@ -71,6 +77,11 @@
   "contact_person_name",
   "contact_person_phone",
   "remarks",
+  "next_of_kin_sec",
+  "next_of_kin_name",
+  "next_of_kin_relationship",
+  "next_of_kin_contact",
+  "next_of_kin_address",
   "coc_sec",
   "coc_status",
   "exam_date",
@@ -78,6 +89,7 @@
   "exam_remaining_days",
   "medical_sec",
   "medical_status",
+  "medical_issue_date",
   "medical_expiry_date",
   "col_break_medical",
   "medical_remaining_days",
@@ -87,11 +99,14 @@
   "state_step",
   "state_progress",
   "registration_date",
+  "contract_elapsed_days",
   "col_break_internal",
   "cancel_remarks",
   "cancelled_at",
   "cancelled_by",
   "missing_data_indicator",
+  "locked_contractor",
+  "locked_at",
   "financials_sec",
   "total_income",
   "total_expense",
@@ -104,6 +119,26 @@
    "fieldname": "personal_info_sec",
    "fieldtype": "Section Break",
    "label": "Personal Information"
+  },
+  {
+   "default": "Standard",
+   "fieldname": "applicant_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Applicant Type",
+   "options": "Standard\nMuayena",
+   "reqd": 1
+  },
+  {
+   "default": "Saudi Arabia",
+   "fieldname": "destination_country",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Destination Country",
+   "options": "Country",
+   "reqd": 1
   },
   {
    "fieldname": "first_name",
@@ -145,22 +180,19 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Religion",
-   "options": "\nMuslim\nNon-Muslim\nOrthodox\nProtestant\nCatholic\nOther",
-   "reqd": 1
+   "options": "\nMuslim\nNon-Muslim\nOrthodox\nProtestant\nCatholic\nOther"
   },
   {
    "fieldname": "marital_status",
    "fieldtype": "Select",
    "label": "Civil / Marital Status",
-   "options": "\nSingle\nMarried\nDivorced\nWidowed",
-   "reqd": 1
+   "options": "\nSingle\nMarried\nDivorced\nWidowed"
   },
   {
    "default": "0",
    "fieldname": "children",
    "fieldtype": "Int",
-   "label": "Number of Children",
-   "reqd": 1
+   "label": "Number of Children"
   },
   {
    "fieldname": "age",
@@ -269,12 +301,12 @@
   {
    "fieldname": "national_id",
    "fieldtype": "Data",
-   "label": "National ID Number"
+   "label": "National ID (FIN Number)"
   },
   {
    "fieldname": "labour_id",
    "fieldtype": "Data",
-   "label": "Labour ID"
+   "label": "Labourer ID"
   },
   {
    "fieldname": "job_experience_sec",
@@ -291,6 +323,19 @@
    "fieldname": "monthly_salary",
    "fieldtype": "Data",
    "label": "Expected Monthly Salary"
+  },
+  {
+   "default": "SAR",
+   "fieldname": "salary_currency",
+   "fieldtype": "Select",
+   "label": "Salary Currency",
+   "options": "SAR\nKWD\nUSD\nETB\nAED\nQAR"
+  },
+  {
+   "default": "2 Years",
+   "fieldname": "contract_period",
+   "fieldtype": "Data",
+   "label": "Contract Duration"
   },
   {
    "fieldname": "highest_education",
@@ -315,6 +360,11 @@
    "options": "\nNone\nBasic\nFair\nFluent"
   },
   {
+   "fieldname": "local_languages",
+   "fieldtype": "Data",
+   "label": "Local Languages Spoken"
+  },
+  {
    "fieldname": "experience_country",
    "fieldtype": "Data",
    "label": "Previous Work Country"
@@ -327,75 +377,74 @@
   {
    "fieldname": "skills_sec",
    "fieldtype": "Section Break",
-   "label": "Skills & Practical Experience"
+   "label": "Skills & Capabilities"
   },
   {
+   "default": "0",
    "fieldname": "skill_cleaning",
-   "fieldtype": "Select",
-   "label": "Cleaning",
-   "options": "\nYES\nNO"
+   "fieldtype": "Check",
+   "label": "Cleaning"
   },
   {
+   "default": "0",
    "fieldname": "skill_washing",
-   "fieldtype": "Select",
-   "label": "Washing",
-   "options": "\nYES\nNO"
+   "fieldtype": "Check",
+   "label": "Washing"
   },
   {
+   "default": "0",
    "fieldname": "skill_ironing",
-   "fieldtype": "Select",
-   "label": "Ironing",
-   "options": "\nYES\nNO"
+   "fieldtype": "Check",
+   "label": "Ironing"
   },
   {
+   "default": "0",
    "fieldname": "skill_baby_sitting",
-   "fieldtype": "Select",
-   "label": "Baby Sitting",
-   "options": "\nYES\nNO"
+   "fieldtype": "Check",
+   "label": "Baby Sitting"
   },
   {
    "fieldname": "col_break_skills",
    "fieldtype": "Column Break"
   },
   {
+   "default": "0",
    "fieldname": "skill_children_care",
-   "fieldtype": "Select",
-   "label": "Children Care",
-   "options": "\nYES\nNO"
+   "fieldtype": "Check",
+   "label": "Children Care"
   },
   {
+   "default": "0",
    "fieldname": "skill_cooking",
-   "fieldtype": "Select",
-   "label": "Cooking",
-   "options": "\nYES\nNO"
+   "fieldtype": "Check",
+   "label": "General Cooking"
   },
   {
+   "default": "0",
    "fieldname": "skill_arabic_cooking",
-   "fieldtype": "Select",
-   "label": "Arabic Cooking",
-   "options": "\nYES\nNO"
+   "fieldtype": "Check",
+   "label": "Arabic Cooking"
   },
   {
+   "default": "0",
    "fieldname": "skill_sewing",
-   "fieldtype": "Select",
-   "label": "Sewing",
-   "options": "\nYES\nNO"
+   "fieldtype": "Check",
+   "label": "Sewing"
   },
   {
+   "default": "0",
    "fieldname": "skill_elderly_care",
-   "fieldtype": "Select",
-   "label": "Elderly Care",
-   "options": "\nYES\nNO"
+   "fieldtype": "Check",
+   "label": "Elderly Care"
   },
   {
    "fieldname": "contact_info_sec",
    "fieldtype": "Section Break",
-   "label": "Contact Information"
+   "label": "Contact & Residential Information"
   },
   {
    "fieldname": "phone_number",
    "fieldtype": "Data",
-   "in_list_view": 1,
    "label": "Phone Number",
    "reqd": 1
   },
@@ -411,14 +460,20 @@
    "options": "Email"
   },
   {
-   "fieldname": "region",
+   "fieldname": "emergency_contact_name",
    "fieldtype": "Data",
-   "label": "Region"
+   "label": "Emergency Contact Person Name"
   },
   {
-   "fieldname": "sub_region",
+   "fieldname": "emergency_contact_phone",
    "fieldtype": "Data",
-   "label": "Sub Region / Zone"
+   "label": "Emergency Contact Phone"
+  },
+  {
+   "fieldname": "emergency_relationship",
+   "fieldtype": "Select",
+   "label": "Emergency Contact Relationship",
+   "options": "Mother\nFather\nHusband\nBrother\nSister\nGuardian\nOther"
   },
   {
    "fieldname": "col_break_contact",
@@ -432,29 +487,54 @@
   {
    "fieldname": "city",
    "fieldtype": "Data",
-   "label": "City",
-   "reqd": 1
+   "label": "City"
   },
   {
+   "default": "Ethiopia",
    "fieldname": "country",
    "fieldtype": "Data",
-   "label": "Country",
-   "reqd": 1
+   "label": "Country"
   },
   {
    "fieldname": "contact_person_name",
    "fieldtype": "Data",
-   "label": "Contact Person Name"
+   "label": "Local Contact Person Name"
   },
   {
    "fieldname": "contact_person_phone",
    "fieldtype": "Data",
-   "label": "Contact Person Phone"
+   "label": "Local Contact Person Phone"
   },
   {
    "fieldname": "remarks",
    "fieldtype": "Small Text",
    "label": "General Remarks / Code (e.g. FED)"
+  },
+  {
+   "fieldname": "next_of_kin_sec",
+   "fieldtype": "Section Break",
+   "label": "Next of Kin Details"
+  },
+  {
+   "fieldname": "next_of_kin_name",
+   "fieldtype": "Data",
+   "label": "Next of Kin Name"
+  },
+  {
+   "fieldname": "next_of_kin_relationship",
+   "fieldtype": "Select",
+   "label": "Next of Kin Relationship",
+   "options": "Father\nMother\nSpouse\nSibling\nChild\nGuardian\nOther"
+  },
+  {
+   "fieldname": "next_of_kin_contact",
+   "fieldtype": "Data",
+   "label": "Next of Kin Contact Phone"
+  },
+  {
+   "fieldname": "next_of_kin_address",
+   "fieldtype": "Small Text",
+   "label": "Next of Kin Residential Address"
   },
   {
    "fieldname": "coc_sec",
@@ -492,6 +572,11 @@
    "fieldtype": "Select",
    "label": "Medical Status",
    "options": "\nFIT\nUNFIT\nPending"
+  },
+  {
+   "fieldname": "medical_issue_date",
+   "fieldtype": "Date",
+   "label": "Medical Issue Date"
   },
   {
    "fieldname": "medical_expiry_date",
@@ -549,6 +634,12 @@
    "read_only": 1
   },
   {
+   "fieldname": "contract_elapsed_days",
+   "fieldtype": "Int",
+   "label": "Contract Elapsed Days",
+   "read_only": 1
+  },
+  {
    "fieldname": "col_break_internal",
    "fieldtype": "Column Break"
   },
@@ -574,6 +665,21 @@
    "fieldname": "missing_data_indicator",
    "fieldtype": "Small Text",
    "label": "Missing Registration Fields",
+   "read_only": 1
+  },
+  {
+   "fieldname": "locked_contractor",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Locked to Foreign Agency",
+   "options": "Contractor",
+   "read_only": 1
+  },
+  {
+   "fieldname": "locked_at",
+   "fieldtype": "Datetime",
+   "label": "Selection Lock Timestamp",
    "read_only": 1
   },
   {
@@ -613,7 +719,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-15 00:28:00.000000",
+ "modified": "2026-08-21 07:30:00.000000",
  "modified_by": "Administrator",
  "module": "Applicant Processing",
  "name": "Applicant",
@@ -633,7 +739,7 @@
    "write": 1
   }
  ],
- "search_fields": "first_name,last_name,full_name,passport_number,phone_number",
+ "search_fields": "first_name,last_name,full_name,passport_number,phone_number,destination_country,locked_contractor",
  "show_title_field_in_link": 1,
  "sort_field": "modified",
  "sort_order": "DESC",

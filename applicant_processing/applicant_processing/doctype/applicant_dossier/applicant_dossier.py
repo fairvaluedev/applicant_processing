@@ -3,11 +3,13 @@
 
 import frappe
 from frappe.model.document import Document
+from frappe.utils import getdate, today, date_diff
 
 
 class ApplicantDossier(Document):
 	def validate(self):
 		self.populate_from_contract_request()
+		self._calculate_contract_elapsed_days()
 
 	def populate_from_contract_request(self):
 		"""Populates Applicant, CV Record, Contractor, and Statuses from the selected Contract Request."""
@@ -29,9 +31,19 @@ class ApplicantDossier(Document):
 			self.full_name = getattr(app, "full_name", None) or f"{app.first_name or ''} {app.last_name or ''}".strip()
 			self.nationality = app.nationality
 			self.passport_number = app.passport_number
+			self.destination_country = getattr(app, "destination_country", None) or "Saudi Arabia"
 
 		if cr.cv_reference:
 			self.cv_status = frappe.db.get_value("CV Record", cr.cv_reference, "status")
+
+	def _calculate_contract_elapsed_days(self):
+		"""Calculates elapsed days since contract arrival."""
+		ref_date = self.contract_date or self.creation
+		if ref_date:
+			try:
+				self.contract_elapsed_days = max(0, date_diff(getdate(today()), getdate(ref_date)))
+			except Exception:
+				self.contract_elapsed_days = 0
 
 	def after_insert(self):
 		# Auto-create corresponding DSR if not exists
@@ -53,6 +65,7 @@ class ApplicantDossier(Document):
 				dsr = frappe.get_doc({
 					"doctype": "DSR",
 					"applicant_dossier": self.name,
+					"destination_country": self.destination_country or "Saudi Arabia",
 					"first_name": self.first_name,
 					"last_name": self.last_name,
 					"full_name": self.full_name,
@@ -90,32 +103,14 @@ class ApplicantDossier(Document):
 @frappe.whitelist()
 def parse_dossier_file(dossier_name):
 	dossier = frappe.get_doc("Applicant Dossier", dossier_name)
-	
+
 	if not dossier.attached_file:
 		frappe.throw("Please attach a file before parsing.")
-		
+
 	if dossier.is_parsed:
 		frappe.throw("This dossier has already been parsed. Manual edits will not be overwritten.")
-		
-	# MOCK PARSER logic
-	dossier.sponsor_name = dossier.sponsor_name or "Mock Sponsor Ltd."
-	dossier.sponsor_id = dossier.sponsor_id or "SP-987654321"
-	dossier.telephone = dossier.telephone or "+966501234567"
-	dossier.visa_number = dossier.visa_number or "1309827465"
-	dossier.contract_date = dossier.contract_date or frappe.utils.today()
-	dossier.contract_duration = dossier.contract_duration or "2 Years"
-	dossier.amount_detail = dossier.amount_detail or 5000.00
-	if not dossier.contractor_name:
-		dossier.contractor_name = "Global Recruitment"
-	dossier.agency = dossier.agency or "Main Agency"
-	dossier.is_parsed = 1
-	
-	dossier.save(ignore_permissions=True)
-	
-	# Recalculate applicant state (will advance to Selected)
-	if dossier.applicant:
-		from applicant_processing.applicant_processing.doctype.applicant.applicant import recalculate_applicant_state
-		recalculate_applicant_state(dossier.applicant)
 
-	return "File successfully parsed and additional fields populated."
+	from applicant_processing.applicant_processing.utils.contract_parser import parse_contract_document
+	res = parse_contract_document(file_url=dossier.attached_file, dossier_name=dossier_name)
 
+	return res.get("message", "File successfully parsed and additional fields populated.")

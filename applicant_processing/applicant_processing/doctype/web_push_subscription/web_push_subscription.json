@@ -1,0 +1,88 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-08-21 07:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "user",
+  "endpoint",
+  "p256dh",
+  "auth",
+  "user_agent",
+  "is_active"
+ ],
+ "fields": [
+  {
+   "fieldname": "user",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "User",
+   "options": "User",
+   "reqd": 1
+  },
+  {
+   "fieldname": "endpoint",
+   "fieldtype": "Small Text",
+   "in_list_view": 1,
+   "label": "Endpoint",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "p256dh",
+   "fieldtype": "Small Text",
+   "label": "P256DH Key",
+   "reqd": 1
+  },
+  {
+   "fieldname": "auth",
+   "fieldtype": "Data",
+   "label": "Auth Token",
+   "reqd": 1
+  },
+  {
+   "fieldname": "user_agent",
+   "fieldtype": "Data",
+   "label": "Browser / Device"
+  },
+  {
+   "default": "1",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Is Active"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-08-21 07:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Applicant Processing",
+ "name": "Web Push Subscription",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "role": "All",
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

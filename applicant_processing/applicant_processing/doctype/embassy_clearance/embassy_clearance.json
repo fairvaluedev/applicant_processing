@@ -1,30 +1,33 @@
 {
  "actions": [],
  "allow_rename": 1,
- "autoname": "LMS-.#####",
- "creation": "2026-08-08 04:40:00",
+ "autoname": "EMB-.#####",
+ "creation": "2026-08-21 06:45:00.000000",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
   "dsr",
   "applicant_dossier",
+  "destination_country",
   "applicant_data_sec",
   "full_name",
   "first_name",
   "last_name",
   "passport_number",
   "status",
-  "issued_on",
+  "submission_date",
+  "approval_date",
+  "fee_sec",
+  "fee_status",
+  "fee_amount",
+  "fee_currency",
+  "receipt_no",
+  "payment_date",
+  "employee_sec",
   "employee",
-  "missing_data_sec",
-  "missing_data_requested",
-  "missing_data_type",
-  "missing_data_requested_at",
-  "missing_data_status",
-  "missing_data_notes",
+  "remarks",
   "financials_sec",
-  "financials",
-  "amended_from"
+  "financials"
  ],
  "fields": [
   {
@@ -43,6 +46,14 @@
    "label": "Applicant Dossier",
    "options": "Applicant Dossier",
    "read_only": 1
+  },
+  {
+   "default": "Kuwait",
+   "fieldname": "destination_country",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Destination Country",
+   "options": "Country"
   },
   {
    "fieldname": "applicant_data_sec",
@@ -85,15 +96,58 @@
    "fieldname": "status",
    "fieldtype": "Select",
    "in_list_view": 1,
-   "label": "Status",
-   "options": "Pending\nIssued\nRejected"
+   "label": "Embassy Status",
+   "options": "Pending\nSubmitted\nApproved\nRejected"
   },
   {
-   "depends_on": "eval:doc.status=='Issued'",
-   "fieldname": "issued_on",
+   "fieldname": "submission_date",
    "fieldtype": "Date",
+   "label": "Submission Date"
+  },
+  {
+   "fieldname": "approval_date",
+   "fieldtype": "Date",
+   "label": "Approval Date"
+  },
+  {
+   "fieldname": "fee_sec",
+   "fieldtype": "Section Break",
+   "label": "Embassy Consular Fees & Payment"
+  },
+  {
+   "default": "Unpaid",
+   "fieldname": "fee_status",
+   "fieldtype": "Select",
    "in_list_view": 1,
-   "label": "Issued On"
+   "label": "Fee Payment Status",
+   "options": "Unpaid\nPaid"
+  },
+  {
+   "fieldname": "fee_amount",
+   "fieldtype": "Currency",
+   "label": "Fee Amount"
+  },
+  {
+   "default": "KWD",
+   "fieldname": "fee_currency",
+   "fieldtype": "Select",
+   "label": "Fee Currency",
+   "options": "KWD\nSAR\nUSD\nETB"
+  },
+  {
+   "fieldname": "receipt_no",
+   "fieldtype": "Data",
+   "label": "Embassy Receipt / Voucher No"
+  },
+  {
+   "fieldname": "payment_date",
+   "fieldtype": "Date",
+   "label": "Payment Date"
+  },
+  {
+   "fieldname": "employee_sec",
+   "fieldtype": "Section Break",
+   "label": "Assignment & Remarks"
   },
   {
    "fieldname": "employee",
@@ -102,43 +156,9 @@
    "options": "User"
   },
   {
-   "fieldname": "missing_data_sec",
-   "fieldtype": "Section Break",
-   "label": "Missing / Expired Data Request (COC / Medical)"
-  },
-  {
-   "default": "0",
-   "fieldname": "missing_data_requested",
-   "fieldtype": "Check",
-   "in_list_view": 1,
-   "label": "Missing Data Requested"
-  },
-  {
-   "depends_on": "eval:doc.missing_data_requested==1",
-   "fieldname": "missing_data_type",
-   "fieldtype": "Select",
-   "label": "Missing Data Type",
-   "options": "GAMCA Medical\nCOC Certificate\nPassport Scan\nNational ID\nOther"
-  },
-  {
-   "depends_on": "eval:doc.missing_data_requested==1",
-   "fieldname": "missing_data_requested_at",
-   "fieldtype": "Date",
-   "label": "Data Request Date"
-  },
-  {
-   "default": "Pending",
-   "depends_on": "eval:doc.missing_data_requested==1",
-   "fieldname": "missing_data_status",
-   "fieldtype": "Select",
-   "label": "Data Request Status",
-   "options": "Pending\nReceived"
-  },
-  {
-   "depends_on": "eval:doc.missing_data_requested==1",
-   "fieldname": "missing_data_notes",
+   "fieldname": "remarks",
    "fieldtype": "Small Text",
-   "label": "Missing Data Notes / Instructions"
+   "label": "Remarks / Notes"
   },
   {
    "fieldname": "financials_sec",
@@ -150,23 +170,13 @@
    "fieldtype": "Table",
    "label": "Financial Logs",
    "options": "Income Expense Log"
-  },
-  {
-   "fieldname": "amended_from",
-   "fieldtype": "Link",
-   "label": "Amended From",
-   "no_copy": 1,
-   "options": "LMS Clearance",
-   "print_hide": 1,
-   "read_only": 1,
-   "search_index": 1
   }
  ],
  "links": [],
  "modified": "2026-08-21 06:45:00.000000",
  "modified_by": "Administrator",
  "module": "Applicant Processing",
- "name": "LMS Clearance",
+ "name": "Embassy Clearance",
  "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [
@@ -181,15 +191,9 @@
    "role": "System Manager",
    "share": 1,
    "write": 1
-  },
-  {
-   "read": 1,
-   "role": "LMS Employee",
-   "write": 1
   }
  ],
- "row_format": "Dynamic",
- "search_fields": "dsr,full_name,passport_number",
+ "search_fields": "dsr,full_name,passport_number,receipt_no",
  "show_title_field_in_link": 1,
  "sort_field": "modified",
  "sort_order": "DESC",

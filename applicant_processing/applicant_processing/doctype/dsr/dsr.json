@@ -7,6 +7,7 @@
  "engine": "InnoDB",
  "field_order": [
   "applicant_dossier",
+  "destination_country",
   "full_name",
   "dossier_data_sec",
   "first_name",
@@ -20,9 +21,16 @@
   "lms_status",
   "wakala_status",
   "injaz_status",
+  "telesign_status",
+  "embassy_status",
   "stamp_status",
   "ticket_status",
   "departure_status",
+  "override_sec",
+  "manager_override",
+  "override_by",
+  "override_at",
+  "override_reason",
   "financials_sec",
   "financials"
  ],
@@ -35,6 +43,15 @@
    "options": "Applicant Dossier",
    "reqd": 1,
    "unique": 1
+  },
+  {
+   "fetch_from": "applicant_dossier.destination_country",
+   "fieldname": "destination_country",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Destination Country",
+   "options": "Country"
   },
   {
    "fetch_from": "applicant_dossier.full_name",
@@ -105,19 +122,31 @@
   {
    "fieldname": "lms_status",
    "fieldtype": "Data",
-   "label": "LMS Status",
+   "label": "LMS / LMIS Status",
    "read_only": 1
   },
   {
    "fieldname": "wakala_status",
    "fieldtype": "Data",
-   "label": "Wakala Status",
+   "label": "Wakala Status (KSA)",
    "read_only": 1
   },
   {
    "fieldname": "injaz_status",
    "fieldtype": "Data",
-   "label": "Injaz Status",
+   "label": "Injaz Status (KSA)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "telesign_status",
+   "fieldtype": "Data",
+   "label": "Telesign Status (Kuwait)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "embassy_status",
+   "fieldtype": "Data",
+   "label": "Embassy Status",
    "read_only": 1
   },
   {
@@ -139,6 +168,36 @@
    "read_only": 1
   },
   {
+   "fieldname": "override_sec",
+   "fieldtype": "Section Break",
+   "label": "Manager Exception Override"
+  },
+  {
+   "default": "0",
+   "fieldname": "manager_override",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Clearance Override Granted"
+  },
+  {
+   "fieldname": "override_by",
+   "fieldtype": "Link",
+   "label": "Overridden By Manager",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "override_at",
+   "fieldtype": "Datetime",
+   "label": "Override Timestamp",
+   "read_only": 1
+  },
+  {
+   "fieldname": "override_reason",
+   "fieldtype": "Small Text",
+   "label": "Override Justification / Reason"
+  },
+  {
    "fieldname": "financials_sec",
    "fieldtype": "Section Break",
    "label": "Income / Expenses"
@@ -151,7 +210,7 @@
   }
  ],
  "links": [],
- "modified": "2026-08-08 04:40:00.000000",
+ "modified": "2026-08-21 06:45:00.000000",
  "modified_by": "Administrator",
  "module": "Applicant Processing",
  "name": "DSR",
@@ -171,7 +230,7 @@
    "write": 1
   }
  ],
- "search_fields": "applicant_dossier,full_name,passport_number",
+ "search_fields": "applicant_dossier,full_name,passport_number,destination_country",
  "show_title_field_in_link": 1,
  "sort_field": "modified",
  "sort_order": "DESC",

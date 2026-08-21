@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+  app:
+    image: applicant_processing:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: applicant_processing_app
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - SITE_NAME=applicant-processing.localhost
+      - DB_HOST=db
+      - DB_PORT=3306
+      - DB_NAME=frappe
+      - DB_USER=frappe
+      - DB_PASSWORD=frappe_db_password
+      - MARIADB_ROOT_PASSWORD=root_db_password
+      - ADMIN_PASSWORD=admin
+      - REDIS_CACHE=redis://redis-cache:6379
+      - REDIS_QUEUE=redis://redis-queue:6379
+    depends_on:
+      - db
+      - redis-cache
+      - redis-queue
+    volumes:
+      - sites_data:/home/frappe/frappe-bench/sites
+      - logs_data:/home/frappe/frappe-bench/logs
+
+  db:
+    image: mariadb:10.6
+    container_name: applicant_processing_db
+    restart: unless-stopped
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --skip-character-set-client-handshake
+      - --skip-innodb-read-only-compressed
+    environment:
+      - MYSQL_ROOT_PASSWORD=root_db_password
+      - MYSQL_DATABASE=frappe
+      - MYSQL_USER=frappe
+      - MYSQL_PASSWORD=frappe_db_password
+    volumes:
+      - mariadb_data:/var/lib/mysql
+
+  redis-cache:
+    image: redis:7-alpine
+    container_name: applicant_processing_redis_cache
+    restart: unless-stopped
+    volumes:
+      - redis_cache_data:/data
+
+  redis-queue:
+    image: redis:7-alpine
+    container_name: applicant_processing_redis_queue
+    restart: unless-stopped
+    volumes:
+      - redis_queue_data:/data
+
+volumes:
+  mariadb_data:
+  sites_data:
+  logs_data:
+  redis_cache_data:
+  redis_queue_data:

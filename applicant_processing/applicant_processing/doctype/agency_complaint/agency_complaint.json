@@ -1,0 +1,192 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "CMP-.#####",
+ "creation": "2026-08-21 06:45:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "contractor",
+  "applicant",
+  "applicant_data_sec",
+  "full_name",
+  "passport_number",
+  "complaint_details_sec",
+  "complaint_category",
+  "severity",
+  "status",
+  "complaint_details",
+  "attachment_evidence",
+  "resolution_sec",
+  "assigned_officer",
+  "resolution_outcome",
+  "resolution_notes",
+  "return_date",
+  "resolved_at",
+  "replacement_sec",
+  "is_free_replacement_created",
+  "replacement_applicant"
+ ],
+ "fields": [
+  {
+   "fieldname": "contractor",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Foreign Partner Agency / Contractor",
+   "options": "Contractor",
+   "reqd": 1
+  },
+  {
+   "fieldname": "applicant",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Target Applicant / Worker",
+   "options": "Applicant",
+   "reqd": 1
+  },
+  {
+   "fieldname": "applicant_data_sec",
+   "fieldtype": "Section Break",
+   "label": "Worker Details"
+  },
+  {
+   "fetch_from": "applicant.full_name",
+   "fieldname": "full_name",
+   "fieldtype": "Data",
+   "in_global_search": 1,
+   "in_list_view": 1,
+   "label": "Applicant Name",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "applicant.passport_number",
+   "fieldname": "passport_number",
+   "fieldtype": "Data",
+   "label": "Passport Number",
+   "read_only": 1
+  },
+  {
+   "fieldname": "complaint_details_sec",
+   "fieldtype": "Section Break",
+   "label": "Complaint Specifications"
+  },
+  {
+   "fieldname": "complaint_category",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Complaint Category",
+   "options": "Salary Delay / Non-Payment\nFood & Nutrition\nLiving Conditions / Accommodation\nPhysical / Verbal Abuse\nExcessive Work Hours / Overwork\nMedical Illness\nRunaway / Refusal to Work\nRepatriation Request\nOther",
+   "reqd": 1
+  },
+  {
+   "default": "High",
+   "fieldname": "severity",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Severity Level",
+   "options": "Normal\nHigh\nCritical / Emergency"
+  },
+  {
+   "default": "Open",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Open\nUnder Investigation\nResolved\nReturned / Free Replacement Required\nEscalated to MoL / Embassy\nDismissed / Closed"
+  },
+  {
+   "fieldname": "complaint_details",
+   "fieldtype": "Small Text",
+   "label": "Incident & Dispute Details",
+   "reqd": 1
+  },
+  {
+   "fieldname": "attachment_evidence",
+   "fieldtype": "Attach",
+   "label": "Evidence Attachment"
+  },
+  {
+   "fieldname": "resolution_sec",
+   "fieldtype": "Section Break",
+   "label": "Welfare Officer Investigation & Resolution"
+  },
+  {
+   "fieldname": "assigned_officer",
+   "fieldtype": "Link",
+   "label": "Assigned Welfare Officer",
+   "options": "User"
+  },
+  {
+   "fieldname": "resolution_outcome",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Resolution Outcome",
+   "options": "Resolved\nReturned / Free Replacement Required\nEscalated\nDismissed"
+  },
+  {
+   "fieldname": "resolution_notes",
+   "fieldtype": "Small Text",
+   "label": "Resolution Notes / Settlement Remarks"
+  },
+  {
+   "fieldname": "return_date",
+   "fieldtype": "Date",
+   "label": "Worker Repatriation / Return Date"
+  },
+  {
+   "fieldname": "resolved_at",
+   "fieldtype": "Datetime",
+   "label": "Resolved Timestamp",
+   "read_only": 1
+  },
+  {
+   "fieldname": "replacement_sec",
+   "fieldtype": "Section Break",
+   "label": "3-Month Free Replacement Allocation"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_free_replacement_created",
+   "fieldtype": "Check",
+   "label": "Free Replacement Candidate Allocated"
+  },
+  {
+   "fieldname": "replacement_applicant",
+   "fieldtype": "Link",
+   "label": "Allocated Replacement Applicant ($0 Commission)",
+   "options": "Applicant"
+  }
+ ],
+ "links": [],
+ "modified": "2026-08-21 06:45:00.000000",
+ "modified_by": "Administrator",
+ "module": "Applicant Processing",
+ "name": "Agency Complaint",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "search_fields": "contractor,applicant,full_name,complaint_category",
+ "show_title_field_in_link": 1,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "full_name"
+}

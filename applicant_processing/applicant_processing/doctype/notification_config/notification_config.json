@@ -8,6 +8,11 @@
   "push_api_url",
   "push_api_key",
   "reminder_check_interval",
+  "webpush_sec",
+  "webpush_enabled",
+  "vapid_public_key",
+  "vapid_private_key",
+  "vapid_subject",
   "whatsapp_sec",
   "whatsapp_enabled",
   "whatsapp_phone_number_id",
@@ -23,8 +28,7 @@
   {
    "fieldname": "push_api_url",
    "fieldtype": "Data",
-   "label": "Push API URL",
-   "reqd": 1
+   "label": "Push API URL"
   },
   {
    "fieldname": "push_api_key",
@@ -37,6 +41,35 @@
    "fieldtype": "Select",
    "label": "Reminder Check Interval",
    "options": "Every Hour\nEvery 4 Hours\nDaily"
+  },
+  {
+   "fieldname": "webpush_sec",
+   "fieldtype": "Section Break",
+   "label": "Chrome / OS Web Push Notifications"
+  },
+  {
+   "default": "1",
+   "fieldname": "webpush_enabled",
+   "fieldtype": "Check",
+   "label": "Enable Chrome Desktop Web Push"
+  },
+  {
+   "fieldname": "vapid_public_key",
+   "fieldtype": "Small Text",
+   "label": "VAPID Public Key",
+   "read_only": 1
+  },
+  {
+   "fieldname": "vapid_private_key",
+   "fieldtype": "Password",
+   "label": "VAPID Private Key",
+   "read_only": 1
+  },
+  {
+   "default": "mailto:admin@example.com",
+   "fieldname": "vapid_subject",
+   "fieldtype": "Data",
+   "label": "VAPID Subject (Email / Contact URL)"
   },
   {
    "fieldname": "whatsapp_sec",
@@ -62,7 +95,7 @@
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-08-08 00:48:00.000000",
+ "modified": "2026-08-21 07:00:00.000000",
  "modified_by": "Administrator",
  "module": "Applicant Processing",
  "name": "Notification Config",

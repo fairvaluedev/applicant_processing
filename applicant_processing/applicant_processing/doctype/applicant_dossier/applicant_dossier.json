@@ -11,6 +11,7 @@
   "contract_request",
   "contract_status",
   "applicant",
+  "destination_country",
   "full_name",
   "first_name",
   "last_name",
@@ -21,19 +22,39 @@
   "cv_status",
   "file_sec",
   "attached_file",
-  "parsed_data_sec",
+  "contract_overview_sec",
+  "contract_number",
+  "visa_number",
+  "contract_date",
+  "contract_elapsed_days",
+  "col_break_overview",
+  "contract_duration",
+  "amount_detail",
+  "is_parsed",
+  "employer_sec",
   "sponsor_name",
   "sponsor_id",
   "telephone",
-  "col_break_parsed_1",
-  "visa_number",
-  "contract_date",
-  "contract_duration",
-  "col_break_parsed_2",
-  "amount_detail",
+  "col_break_employer",
+  "employer_street",
+  "employer_city",
+  "employer_mobile",
+  "recruiting_agency_sec",
   "contractor_name",
+  "recruiting_agency_license",
+  "recruiting_agency_telephone",
+  "col_break_recruiting_agency",
+  "recruiting_agency_street",
+  "recruiting_agency_city",
+  "recruiting_agency_email",
+  "origin_agency_sec",
   "agency",
-  "is_parsed",
+  "origin_agency_license",
+  "origin_agency_phone",
+  "col_break_origin_agency",
+  "origin_agency_street",
+  "origin_agency_city",
+  "origin_agency_email",
   "income_expense_logs_sec",
   "financials"
  ],
@@ -41,7 +62,7 @@
   {
    "fieldname": "contract_sec",
    "fieldtype": "Section Break",
-   "label": "Contract Details"
+   "label": "Contract Request Details"
   },
   {
    "fieldname": "contract_request",
@@ -66,6 +87,16 @@
    "label": "Applicant",
    "options": "Applicant",
    "read_only": 1
+  },
+  {
+   "default": "Saudi Arabia",
+   "fetch_from": "applicant.destination_country",
+   "fieldname": "destination_country",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Destination Country",
+   "options": "Country"
   },
   {
    "fetch_from": "applicant.full_name",
@@ -128,40 +159,28 @@
   {
    "fieldname": "file_sec",
    "fieldtype": "Section Break",
-   "label": "Dossier File"
+   "label": "Dossier File Attachment"
   },
   {
    "fieldname": "attached_file",
    "fieldtype": "Attach",
-   "label": "Attached File"
+   "label": "Attached Contract File (PDF / Image)"
   },
   {
-   "fieldname": "parsed_data_sec",
+   "fieldname": "contract_overview_sec",
    "fieldtype": "Section Break",
-   "label": "Parsed Data"
+   "label": "Contract & Visa Information"
   },
   {
-   "fieldname": "sponsor_name",
+   "fieldname": "contract_number",
    "fieldtype": "Data",
-   "label": "Sponsor Name"
-  },
-  {
-   "fieldname": "sponsor_id",
-   "fieldtype": "Data",
-   "label": "Sponsor ID"
-  },
-  {
-   "fieldname": "telephone",
-   "fieldtype": "Data",
-   "label": "Telephone"
-  },
-  {
-   "fieldname": "col_break_parsed_1",
-   "fieldtype": "Column Break"
+   "in_list_view": 1,
+   "label": "Contract Number"
   },
   {
    "fieldname": "visa_number",
    "fieldtype": "Data",
+   "in_list_view": 1,
    "label": "Visa Number"
   },
   {
@@ -170,36 +189,157 @@
    "label": "Contract Date"
   },
   {
+   "fieldname": "contract_elapsed_days",
+   "fieldtype": "Int",
+   "label": "Contract Elapsed Days",
+   "read_only": 1
+  },
+  {
+   "fieldname": "col_break_overview",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "2 Years",
    "fieldname": "contract_duration",
    "fieldtype": "Data",
    "label": "Contract Duration"
   },
   {
-   "fieldname": "col_break_parsed_2",
-   "fieldtype": "Column Break"
-  },
-  {
    "fieldname": "amount_detail",
    "fieldtype": "Currency",
-   "label": "Amount Detail"
-  },
-  {
-   "fetch_from": "contract_request.contractor",
-   "fieldname": "contractor_name",
-   "fieldtype": "Data",
-   "label": "Contractor Name"
-  },
-  {
-   "fieldname": "agency",
-   "fieldtype": "Data",
-   "label": "Agency"
+   "label": "Monthly Salary / Amount"
   },
   {
    "default": "0",
    "fieldname": "is_parsed",
    "fieldtype": "Check",
-   "label": "Is Parsed",
+   "label": "Is Parsed via Contract Parser",
    "read_only": 1
+  },
+  {
+   "fieldname": "employer_sec",
+   "fieldtype": "Section Break",
+   "label": "Under Employer (First Party)"
+  },
+  {
+   "fieldname": "sponsor_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Employer / Sponsor Name"
+  },
+  {
+   "fieldname": "sponsor_id",
+   "fieldtype": "Data",
+   "label": "National ID Number"
+  },
+  {
+   "fieldname": "telephone",
+   "fieldtype": "Data",
+   "label": "Telephone"
+  },
+  {
+   "fieldname": "col_break_employer",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "employer_street",
+   "fieldtype": "Data",
+   "label": "Employer Street"
+  },
+  {
+   "fieldname": "employer_city",
+   "fieldtype": "Data",
+   "label": "Employer City"
+  },
+  {
+   "fieldname": "employer_mobile",
+   "fieldtype": "Data",
+   "label": "Employer Mobile"
+  },
+  {
+   "fieldname": "recruiting_agency_sec",
+   "fieldtype": "Section Break",
+   "label": "Under Recruiting Agency (Foreign Contractor)"
+  },
+  {
+   "fetch_from": "contract_request.contractor",
+   "fieldname": "contractor_name",
+   "fieldtype": "Data",
+   "label": "Recruiting Agency Name"
+  },
+  {
+   "fieldname": "recruiting_agency_license",
+   "fieldtype": "Data",
+   "label": "License No"
+  },
+  {
+   "fieldname": "recruiting_agency_telephone",
+   "fieldtype": "Data",
+   "label": "Telephone"
+  },
+  {
+   "fieldname": "col_break_recruiting_agency",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "recruiting_agency_street",
+   "fieldtype": "Data",
+   "label": "Street"
+  },
+  {
+   "fieldname": "recruiting_agency_city",
+   "fieldtype": "Data",
+   "label": "City"
+  },
+  {
+   "fieldname": "recruiting_agency_email",
+   "fieldtype": "Data",
+   "label": "Email",
+   "options": "Email"
+  },
+  {
+   "fieldname": "origin_agency_sec",
+   "fieldtype": "Section Break",
+   "label": "Under Her Country Recruitment Agency (Origin / Ethiopian Agency)"
+  },
+  {
+   "default": "ANWAR SULTAN FOREIGN EMPLOYMENT AGENT",
+   "fieldname": "agency",
+   "fieldtype": "Data",
+   "label": "Agency Name"
+  },
+  {
+   "default": "3226",
+   "fieldname": "origin_agency_license",
+   "fieldtype": "Data",
+   "label": "License No"
+  },
+  {
+   "fieldname": "origin_agency_phone",
+   "fieldtype": "Data",
+   "label": "Contact No / Phone"
+  },
+  {
+   "fieldname": "col_break_origin_agency",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Addis Ababa",
+   "fieldname": "origin_agency_street",
+   "fieldtype": "Data",
+   "label": "Street"
+  },
+  {
+   "default": "Addis Ababa",
+   "fieldname": "origin_agency_city",
+   "fieldtype": "Data",
+   "label": "City"
+  },
+  {
+   "fieldname": "origin_agency_email",
+   "fieldtype": "Data",
+   "label": "Email",
+   "options": "Email"
   },
   {
    "fieldname": "income_expense_logs_sec",
@@ -216,7 +356,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-10 23:22:00.000000",
+ "modified": "2026-08-21 06:45:00.000000",
  "modified_by": "Administrator",
  "module": "Applicant Processing",
  "name": "Applicant Dossier",
@@ -236,7 +376,7 @@
    "write": 1
   }
  ],
- "search_fields": "applicant,full_name,passport_number,contract_request",
+ "search_fields": "applicant,full_name,passport_number,contract_request,contract_number,visa_number,destination_country",
  "show_title_field_in_link": 1,
  "sort_field": "modified",
  "sort_order": "DESC",

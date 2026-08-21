@@ -22,9 +22,6 @@ DRAFT_REQUIRED_FIELDS = {
     "first_name": "First Name",
     "last_name": "Last Name",
     "nationality": "Nationality",
-    "religion": "Religion",
-    "marital_status": "Civil / Marital Status",
-    "children": "Number of Children",
     "phone_number": "Phone Number",
     "gender": "Gender",
 }
@@ -83,7 +80,7 @@ class Applicant(Document):
         self.full_name = " ".join([p.strip() for p in parts if p and p.strip()]).strip()
 
     def _calculate_computed_days(self):
-        """Computes remaining days for COC Exam and Medical validity."""
+        """Computes remaining days for COC Exam and Medical validity, and elapsed processing days."""
         from frappe.utils import getdate, today, date_diff
 
         curr_today = getdate(today())
@@ -97,6 +94,13 @@ class Applicant(Document):
             self.medical_remaining_days = date_diff(getdate(self.medical_expiry_date), curr_today)
         else:
             self.medical_remaining_days = None
+
+        ref_date = self.registration_date or self.creation
+        if ref_date:
+            try:
+                self.contract_elapsed_days = max(0, date_diff(curr_today, getdate(ref_date)))
+            except Exception:
+                self.contract_elapsed_days = 0
 
     def _calculate_state_progress(self):
         """Computes lifecycle step and percentage for frontend dashboards and progress bars."""
@@ -574,7 +578,7 @@ def recalculate_applicant_state(applicant_name):
     elif dsr_names and frappe.db.exists("DSR Stamp", {"dsr": ["in", dsr_names], "status": ["in", ["Completed", "Approved"]]}):
         target_state = "Stamped"
 
-    # 4. Check Processing (Step 6) - when employees are assigned to LMS/Wakala/Injaz clearances or clearances are underway/completed
+    # 4. Check Processing (Step 6) - when employees are assigned to LMS/Wakala/Injaz/Telesign/Embassy clearances or clearances are underway/completed
     elif dsr_names and (
         frappe.db.sql("""
             SELECT name FROM `tabLMS Clearance` WHERE dsr IN %(dsrs)s AND employee IS NOT NULL AND employee != ''
@@ -583,11 +587,19 @@ def recalculate_applicant_state(applicant_name):
             UNION
             SELECT name FROM `tabInjaz Clearance` WHERE dsr IN %(dsrs)s AND employee IS NOT NULL AND employee != ''
             UNION
+            SELECT name FROM `tabTelesign Clearance` WHERE dsr IN %(dsrs)s AND employee IS NOT NULL AND employee != ''
+            UNION
+            SELECT name FROM `tabEmbassy Clearance` WHERE dsr IN %(dsrs)s AND employee IS NOT NULL AND employee != ''
+            UNION
             SELECT name FROM `tabLMS Clearance` WHERE dsr IN %(dsrs)s AND status IN ('In Progress', 'Completed', 'Issued')
             UNION
-            SELECT name FROM `tabWakala Clearance` WHERE dsr IN %(dsrs)s AND status IN ('In Progress', 'Completed')
+            SELECT name FROM `tabWakala Clearance` WHERE dsr IN %(dsrs)s AND status IN ('In Progress', 'Completed', 'Paid')
             UNION
             SELECT name FROM `tabInjaz Clearance` WHERE dsr IN %(dsrs)s AND status IN ('In Progress', 'Completed')
+            UNION
+            SELECT name FROM `tabTelesign Clearance` WHERE dsr IN %(dsrs)s AND status IN ('In Progress', 'Authenticated', 'Completed')
+            UNION
+            SELECT name FROM `tabEmbassy Clearance` WHERE dsr IN %(dsrs)s AND status IN ('In Progress', 'Submitted', 'Approved', 'Completed')
         """, {"dsrs": dsr_names})
     ):
         target_state = "Processing"
@@ -616,3 +628,68 @@ def recalculate_applicant_state(applicant_name):
         frappe.db.set_value("Applicant", applicant_name, "applicant_state", target_state, update_modified=False)
 
     return target_state
+
+
+@frappe.whitelist()
+def scan_and_populate_passport(applicant_name=None, file_url=None, raw_mrz_text=None):
+    """
+    Whitelisted RPC method to parse a passport document or image using
+    MRZ-Targeted OCR and ICAO 9303 Checksum Decoder.
+    Populates extracted data onto the Applicant record.
+    """
+    from applicant_processing.applicant_processing.utils.passport_mrz import parse_passport_document
+
+    res = parse_passport_document(
+        file_url=file_url,
+        applicant_name=applicant_name,
+        raw_mrz_text=raw_mrz_text
+    )
+    return res
+
+
+@frappe.whitelist()
+def revert_applicant_state(applicant_name, target_state, reason):
+    """
+    Forgiving UI State Rollback:
+    Allows authorized staff to revert an Applicant's state back to a previous stage
+    with a mandatory justification remark and audit logging.
+    """
+    if not applicant_name or not target_state or not reason:
+        frappe.throw("Applicant Name, Target State, and Reason are mandatory.")
+
+    app = frappe.get_doc("Applicant", applicant_name)
+    old_state = app.applicant_state
+    app.applicant_state = target_state
+    app.save(ignore_permissions=True)
+
+    app.add_comment(
+        "Comment",
+        f"<b>State Reverted</b> from <i>{old_state}</i> to <i>{target_state}</i> by {frappe.session.user}. Reason: {reason}"
+    )
+
+    return {"message": f"Applicant state reverted to {target_state}.", "applicant_state": target_state}
+
+
+@frappe.whitelist()
+def uncancel_applicant(applicant_name, reason):
+    """
+    Re-activates an accidentally cancelled applicant and restores their computed state.
+    """
+    if not applicant_name or not reason:
+        frappe.throw("Applicant Name and Reason are mandatory.")
+
+    app = frappe.get_doc("Applicant", applicant_name)
+    if app.applicant_state != "Cancelled":
+        frappe.throw("Applicant is not in Cancelled state.")
+
+    app.cancelled_at = None
+    app.cancelled_by = None
+    app.cancel_remarks = None
+    app.applicant_state = "Draft"
+    app.save(ignore_permissions=True)
+
+    app.add_comment("Comment", f"<b>Applicant Un-cancelled</b> by {frappe.session.user}. Reason: {reason}")
+    
+    # Recalculate true state
+    new_state = recalculate_applicant_state(applicant_name)
+    return {"message": f"Applicant restored to active status ({new_state}).", "applicant_state": new_state}

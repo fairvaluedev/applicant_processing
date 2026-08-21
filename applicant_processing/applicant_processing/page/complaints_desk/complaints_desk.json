@@ -1,0 +1,18 @@
+{
+ "creation": "2026-08-21 08:15:00.000000",
+ "doctype": "Page",
+ "modified": "2026-08-21 08:15:00.000000",
+ "modified_by": "Administrator",
+ "module": "Applicant Processing",
+ "name": "complaints-desk",
+ "owner": "Administrator",
+ "page_name": "complaints-desk",
+ "roles": [
+  {
+   "doctype": "Has Role",
+   "role": "System Manager"
+  }
+ ],
+ "standard": "Yes",
+ "title": "Agency Complaints & Welfare Desk"
+}

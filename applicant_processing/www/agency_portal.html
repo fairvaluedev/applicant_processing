@@ -1,0 +1,1268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Foreign Agency Portal | Candidate Selection & Welfare Desk</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --primary-light: #eff6ff;
+            --accent: #10b981;
+            --accent-dark: #059669;
+            --danger: #ef4444;
+            --danger-dark: #dc2626;
+            --warning: #f59e0b;
+            --surface: #ffffff;
+            --bg: #f8fafc;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+            --radius-lg: 16px;
+            --radius-md: 10px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Top Header */
+        header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            padding: 0.85rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .brand-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .brand-logo {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #2563eb, #3b82f6);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 800;
+            font-size: 1.25rem;
+            box-shadow: 0 4px 10px rgba(37, 99, 235, 0.3);
+        }
+
+        .brand-text h1 {
+            font-size: 1.1rem;
+            font-weight: 800;
+            color: var(--text-main);
+            letter-spacing: -0.02em;
+        }
+
+        .brand-text p {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .nav-tabs {
+            display: flex;
+            background: #f1f5f9;
+            padding: 4px;
+            border-radius: 12px;
+            gap: 4px;
+        }
+
+        .nav-tab {
+            padding: 8px 18px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .nav-tab.active {
+            background: white;
+            color: var(--primary);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .agency-selector {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #f8fafc;
+            padding: 6px 12px;
+            border-radius: 30px;
+            border: 1px solid var(--border);
+        }
+
+        .agency-selector label {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--text-muted);
+        }
+
+        .agency-selector select {
+            border: none;
+            background: transparent;
+            font-weight: 700;
+            color: var(--primary-dark);
+            font-size: 0.85rem;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .btn-action-danger {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 0.55rem 1rem;
+            font-weight: 700;
+            font-size: 0.8rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            box-shadow: 0 2px 6px rgba(239, 68, 68, 0.3);
+            transition: all 0.2s;
+        }
+
+        .btn-action-danger:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 10px rgba(239, 68, 68, 0.4);
+        }
+
+        /* Container */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 1.5rem 2rem;
+            flex: 1;
+            width: 100%;
+        }
+
+        /* Tab Panes */
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+            animation: fadeIn 0.2s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Hero */
+        .hero-banner {
+            background: linear-gradient(135deg, #1e293b, #0f172a);
+            border-radius: var(--radius-lg);
+            padding: 2rem 2.5rem;
+            color: white;
+            margin-bottom: 1.5rem;
+            box-shadow: var(--shadow-lg);
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .hero-title {
+            font-size: 1.6rem;
+            font-weight: 800;
+            margin-bottom: 0.4rem;
+        }
+
+        .hero-subtitle {
+            font-size: 0.9rem;
+            color: #94a3b8;
+            max-width: 600px;
+        }
+
+        /* Filter Bar */
+        .filter-bar {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 1rem 1.25rem;
+            margin-bottom: 1.5rem;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)) auto;
+            gap: 1rem;
+            align-items: end;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .filter-group label {
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+        }
+
+        .filter-input {
+            padding: 0.55rem 0.8rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            outline: none;
+            background: #fafafa;
+            transition: all 0.2s;
+        }
+
+        .filter-input:focus {
+            border-color: var(--primary);
+            background: white;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .btn-refresh {
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 0.6rem 1.25rem;
+            font-weight: 700;
+            font-size: 0.85rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: background 0.2s;
+            height: 38px;
+        }
+
+        .btn-refresh:hover {
+            background: var(--primary-dark);
+        }
+
+        /* Candidate Grid */
+        .candidate-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1.25rem;
+        }
+
+        .candidate-card {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            box-shadow: var(--shadow-sm);
+            transition: transform 0.2s, box-shadow 0.2s;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .candidate-card:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--shadow-lg);
+            border-color: #cbd5e1;
+        }
+
+        .card-header-banner {
+            height: 160px;
+            background: #e2e8f0;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .card-photo-body {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: top;
+        }
+
+        .card-photo-fallback {
+            color: #94a3b8;
+            font-size: 2.5rem;
+            font-weight: 800;
+        }
+
+        .country-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(8px);
+            color: white;
+            padding: 3px 8px;
+            border-radius: 16px;
+            font-size: 0.7rem;
+            font-weight: 700;
+        }
+
+        .passport-thumb {
+            position: absolute;
+            bottom: -18px;
+            left: 16px;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            border: 3px solid white;
+            object-fit: cover;
+            box-shadow: var(--shadow-md);
+            background: white;
+        }
+
+        .card-body {
+            padding: 1.5rem 1rem 1rem 1rem;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .candidate-name {
+            font-size: 1rem;
+            font-weight: 800;
+            color: var(--text-main);
+            margin-bottom: 2px;
+        }
+
+        .candidate-job {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--primary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 10px;
+        }
+
+        .meta-specs {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+            margin-bottom: 0.85rem;
+            background: #f8fafc;
+            padding: 8px;
+            border-radius: 8px;
+        }
+
+        .spec-item {
+            font-size: 0.75rem;
+        }
+
+        .spec-label {
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        .spec-value {
+            color: var(--text-main);
+            font-weight: 700;
+        }
+
+        .skills-tag-cloud {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin-bottom: 1rem;
+            flex: 1;
+        }
+
+        .skill-tag {
+            background: #eff6ff;
+            color: #1e40af;
+            font-size: 0.68rem;
+            font-weight: 700;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        .card-actions {
+            display: grid;
+            grid-template-columns: 1fr 1.2fr;
+            gap: 6px;
+            margin-top: auto;
+            border-top: 1px solid var(--border);
+            padding-top: 0.85rem;
+        }
+
+        .btn-cv {
+            background: #f1f5f9;
+            color: var(--text-main);
+            border: 1px solid var(--border);
+            padding: 0.5rem;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn-select {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            border: none;
+            padding: 0.5rem;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: 800;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            box-shadow: 0 2px 4px rgba(16, 185, 129, 0.3);
+        }
+
+        .btn-select:hover {
+            background: linear-gradient(135deg, #059669, #047857);
+        }
+
+        /* Complaints Sub-Tabs */
+        .sub-tab-bar {
+            display: flex;
+            gap: 10px;
+            border-bottom: 2px solid var(--border);
+            margin-bottom: 1.5rem;
+        }
+
+        .sub-tab {
+            padding: 10px 18px;
+            border: none;
+            background: transparent;
+            font-weight: 700;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            cursor: pointer;
+            position: relative;
+            bottom: -2px;
+            transition: all 0.2s;
+        }
+
+        .sub-tab.active {
+            color: var(--primary);
+            border-bottom: 2px solid var(--primary);
+        }
+
+        .badge-count {
+            background: #e2e8f0;
+            color: var(--text-main);
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            margin-left: 6px;
+        }
+
+        .sub-tab.active .badge-count {
+            background: #dbeafe;
+            color: var(--primary);
+        }
+
+        /* Complaint Cards Table */
+        .complaints-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .complaint-card {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 1.25rem;
+            box-shadow: var(--shadow-sm);
+            display: grid;
+            grid-template-columns: auto 1fr auto auto;
+            gap: 1.5rem;
+            align-items: center;
+            transition: all 0.2s;
+        }
+
+        .complaint-card.urgent {
+            border-left: 5px solid var(--danger);
+            background: #fffafa;
+        }
+
+        .complaint-card:hover {
+            box-shadow: var(--shadow-md);
+        }
+
+        .complaint-priority-badge {
+            width: 44px;
+            height: 44px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 1rem;
+        }
+
+        .complaint-priority-badge.high {
+            background: #fee2e2;
+            color: var(--danger-dark);
+        }
+
+        .complaint-priority-badge.critical {
+            background: #fef2f2;
+            color: #991b1b;
+            border: 2px solid #ef4444;
+            animation: pulseAlert 2s infinite;
+        }
+
+        @keyframes pulseAlert {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+            70% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+
+        .complaint-info h4 {
+            font-size: 1rem;
+            font-weight: 800;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .complaint-tag {
+            background: #f1f5f9;
+            color: var(--text-muted);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .complaint-details-text {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+            line-height: 1.4;
+        }
+
+        .complaint-timer {
+            text-align: right;
+        }
+
+        .days-unresolved {
+            font-size: 1.1rem;
+            font-weight: 800;
+            color: var(--danger);
+        }
+
+        .timer-label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .btn-resolve {
+            background: #0f172a;
+            color: white;
+            border: none;
+            padding: 0.6rem 1.1rem;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-resolve:hover {
+            background: #1e293b;
+        }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(4px);
+            z-index: 100;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 1.5rem;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal-box {
+            background: white;
+            border-radius: var(--radius-lg);
+            max-width: 580px;
+            width: 100%;
+            padding: 2rem;
+            box-shadow: var(--shadow-lg);
+            position: relative;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .modal-title {
+            font-size: 1.25rem;
+            font-weight: 800;
+        }
+
+        .modal-close {
+            background: #f1f5f9;
+            border: none;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            font-weight: 800;
+            cursor: pointer;
+        }
+
+        .form-group {
+            margin-bottom: 1.2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .form-group label {
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        .form-input {
+            padding: 0.65rem 0.9rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            outline: none;
+        }
+
+        .form-input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .btn-submit-modal {
+            background: var(--danger);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 0.75rem 1.5rem;
+            font-weight: 800;
+            font-size: 0.9rem;
+            width: 100%;
+            cursor: pointer;
+            margin-top: 1rem;
+        }
+
+        /* Toast */
+        #toast-container {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 200;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .toast {
+            background: #0f172a;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 10px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .toast.success { background: #065f46; border-left: 4px solid #10b981; }
+        .toast.error { background: #7f1d1d; border-left: 4px solid #ef4444; }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <header>
+        <div class="brand-container">
+            <div class="brand-logo">FV</div>
+            <div class="brand-text">
+                <h1>FairValue APS</h1>
+                <p>Foreign Agency Sourcing & Dispute Management Portal</p>
+            </div>
+        </div>
+
+        <!-- Main Navigation Tabs -->
+        <div class="nav-tabs">
+            <button class="nav-tab active" id="tabNavCandidates" onclick="switchMainTab('candidates')">
+                <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M7 14s-1 0-1-1 1-4 5-4 5 3 5 4-1 1-1 1zm4-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6m-5.784 6A2.24 2.24 0 0 1 5 13c0-1.355.68-2.75 1.936-3.72A6.3 6.3 0 0 0 5 9c-4 0-5 3-5 4s1 1 1 1zM4.5 8a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5"/></svg>
+                Candidate Sourcing Pool
+            </button>
+            <button class="nav-tab" id="tabNavComplaints" onclick="switchMainTab('complaints')">
+                <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M7.005 3.1a1 1 0 1 1 1.99 0l-.388 6.35a.61.61 0 0 1-1.214 0zM7 12a1 1 0 1 1 2 0 1 1 0 0 1-2 0"/><path d="M0 2a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2zm15 0a1 1 0 0 0-1-1H2a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1z"/></svg>
+                Dispute & Complaints Desk
+            </button>
+        </div>
+
+        <div class="header-actions">
+            <div class="agency-selector">
+                <label for="activeContractor">Active Agency:</label>
+                <select id="activeContractor" onchange="onAgencyChange()">
+                    {% if contractors %}
+                        {% for c in contractors %}
+                            <option value="{{ c.name }}" data-country="{{ c.country or 'Saudi Arabia' }}">{{ c.company_name }} ({{ c.country or 'KSA' }})</option>
+                        {% endfor %}
+                    {% else %}
+                        <option value="Direct Agency">General Partner Agency</option>
+                    {% endif %}
+                </select>
+            </div>
+
+            <button class="btn-action-danger" onclick="openComplaintModal()">
+                <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/><path d="M7.002 11a1 1 0 1 1 2 0 1 1 0 0 1-2 0M7.1 4.995a.905.905 0 1 1 1.8 0l-.35 3.507a.552.552 0 0 1-1.1 0z"/></svg>
+                File Dispute / Complaint
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <div class="container">
+
+        <!-- ========================================== -->
+        <!-- TAB 1: CANDIDATE SOURCING POOL -->
+        <!-- ========================================== -->
+        <div id="viewCandidates" class="tab-content active">
+            <div class="hero-banner">
+                <div>
+                    <h2 class="hero-title">Available Candidate Pool</h2>
+                    <p class="hero-subtitle">Browse pre-screened domestic workers and specialists. Select and reserve candidates in real-time for Musaned contract processing.</p>
+                </div>
+            </div>
+
+            <div class="filter-bar">
+                <div class="filter-group">
+                    <label>Corridor / Country</label>
+                    <select id="filterCountry" class="filter-input">
+                        <option value="">All Corridors</option>
+                        <option value="Saudi Arabia" selected>Saudi Arabia (KSA)</option>
+                        <option value="Kuwait">Kuwait</option>
+                        <option value="UAE">United Arab Emirates</option>
+                        <option value="Qatar">Qatar</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label>Job Position</label>
+                    <select id="filterJob" class="filter-input">
+                        <option value="">All Professions</option>
+                        <option value="Housemaid">Housemaid</option>
+                        <option value="Cook">Cook / Chef</option>
+                        <option value="Baby Sitting">Nanny / Babysitter</option>
+                        <option value="Elderly Care">Elderly Care</option>
+                        <option value="Driver">Driver</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label>Religion</label>
+                    <select id="filterReligion" class="filter-input">
+                        <option value="">All Religions</option>
+                        <option value="Muslim">Muslim</option>
+                        <option value="Non-Muslim">Non-Muslim</option>
+                        <option value="Orthodox">Orthodox</option>
+                        <option value="Protestant">Protestant</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label>Search Name</label>
+                    <input type="text" id="filterSearch" class="filter-input" placeholder="Search candidate...">
+                </div>
+
+                <button class="btn-refresh" onclick="loadCandidates()">
+                    <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/><path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/></svg>
+                    Apply Filters
+                </button>
+            </div>
+
+            <div id="candidateGrid" class="candidate-grid"></div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- TAB 2: DISPUTE & COMPLAINTS WORKBENCH -->
+        <!-- ========================================== -->
+        <div id="viewComplaints" class="tab-content">
+            <div class="hero-banner" style="background: linear-gradient(135deg, #7f1d1d, #450a0a);">
+                <div>
+                    <h2 class="hero-title">Foreign Agency Welfare & Dispute Desk</h2>
+                    <p class="hero-subtitle">Disputes and grievances filed by partner agencies. Unresolved complaints are prioritized by **longest waiting time** to meet strict welfare SLAs.</p>
+                </div>
+                <button class="btn-action-danger" style="background: white; color: #991b1b; box-shadow: none;" onclick="openComplaintModal()">
+                    + Log New Dispute
+                </button>
+            </div>
+
+            <!-- Complaints Sub-Tabs -->
+            <div class="sub-tab-bar">
+                <button class="sub-tab active" id="subTabUnresolved" onclick="switchComplaintSubTab('unresolved')">
+                    ⏳ Unresolved Queue (Oldest First) <span class="badge-count" id="countUnresolved">0</span>
+                </button>
+                <button class="sub-tab" id="subTabNew" onclick="switchComplaintSubTab('new')">
+                    ⚡ New Disputes <span class="badge-count" id="countNew">0</span>
+                </button>
+                <button class="sub-tab" id="subTabResolved" onclick="switchComplaintSubTab('resolved')">
+                    ✅ Resolved & Free Replacements <span class="badge-count" id="countResolved">0</span>
+                </button>
+            </div>
+
+            <!-- Complaints List Container -->
+            <div id="complaintsContainer" class="complaints-list">
+                <!-- Dynamically Populated -->
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ========================================== -->
+    <!-- MODAL: FILE COMPLAINT / DISPUTE -->
+    <!-- ========================================== -->
+    <div id="complaintModal" class="modal-overlay">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h3 class="modal-title">File Worker Grievance / Dispute</h3>
+                <button class="modal-close" onclick="closeComplaintModal()">✕</button>
+            </div>
+
+            <form id="formComplaint" onsubmit="submitComplaintForm(event)">
+                <div class="form-group">
+                    <label>Target Candidate / Worker Name or ID *</label>
+                    <input type="text" id="cmpApplicant" class="form-input" placeholder="e.g. APP-00001 or Candidate Full Name" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Complaint Category *</label>
+                    <select id="cmpCategory" class="form-input" required>
+                        <option value="Salary Delay / Non-Payment">Salary Delay / Non-Payment</option>
+                        <option value="Food & Nutrition">Food & Nutrition Deprivation</option>
+                        <option value="Living Conditions / Accommodation">Living Conditions / Substandard Accommodation</option>
+                        <option value="Physical / Verbal Abuse">Physical / Verbal Abuse</option>
+                        <option value="Excessive Work Hours / Overwork">Excessive Work Hours / Overwork</option>
+                        <option value="Medical Illness">Medical Illness / Hospitalization</option>
+                        <option value="Runaway / Refusal to Work">Runaway / Refusal to Work</option>
+                        <option value="Repatriation Request">Repatriation / Return Request (3-Month Guarantee)</option>
+                        <option value="Other">Other Operational Issue</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Severity Level *</label>
+                    <select id="cmpSeverity" class="form-input" required>
+                        <option value="Critical / Emergency">Critical / Emergency (Immediate Action)</option>
+                        <option value="High" selected>High Priority</option>
+                        <option value="Normal">Normal</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Incident Details & Evidence *</label>
+                    <textarea id="cmpDetails" class="form-input" rows="4" placeholder="Describe the dispute, employer details, unpaid salary months, or incident chronology..." required></textarea>
+                </div>
+
+                <button type="submit" class="btn-submit-modal" id="btnSubmitCmp">Submit Dispute (Highest Priority)</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- MODAL: RESOLVE DISPUTE -->
+    <!-- ========================================== -->
+    <div id="resolveModal" class="modal-overlay">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h3 class="modal-title">Resolve Worker Dispute</h3>
+                <button class="modal-close" onclick="closeResolveModal()">✕</button>
+            </div>
+
+            <form id="formResolve" onsubmit="submitResolveForm(event)">
+                <input type="hidden" id="resComplaintId">
+                <div class="form-group">
+                    <label>Resolution Outcome *</label>
+                    <select id="resOutcome" class="form-input" required>
+                        <option value="Resolved">Resolved (Salary Reconciled / Dispute Settled)</option>
+                        <option value="Returned / Free Replacement Required">Returned Worker (Auto-Grant 3-Month Free Replacement @ $0 Commission)</option>
+                        <option value="Escalated">Escalated to Ministry of Labor / Embassy</option>
+                        <option value="Dismissed">Dismissed / Invalid Dispute</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Resolution & Settlement Notes *</label>
+                    <textarea id="resNotes" class="form-input" rows="3" placeholder="Enter settlement details, payment proof receipt, or replacement terms..." required></textarea>
+                </div>
+
+                <button type="submit" class="btn-submit-modal" style="background: #059669;">Finalize Dispute Resolution</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="toast-container"></div>
+
+    <script>
+        let allCandidates = [];
+        let currentComplaintTab = 'unresolved';
+
+        function switchMainTab(tab) {
+            document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+            if (tab === 'candidates') {
+                document.getElementById('tabNavCandidates').classList.add('active');
+                document.getElementById('viewCandidates').classList.add('active');
+                loadCandidates();
+            } else {
+                document.getElementById('tabNavComplaints').classList.add('active');
+                document.getElementById('viewComplaints').classList.add('active');
+                loadComplaints(currentComplaintTab);
+            }
+        }
+
+        function switchComplaintSubTab(subTab) {
+            currentComplaintTab = subTab;
+            document.querySelectorAll('.sub-tab').forEach(t => t.classList.remove('active'));
+            if (subTab === 'unresolved') document.getElementById('subTabUnresolved').classList.add('active');
+            if (subTab === 'new') document.getElementById('subTabNew').classList.add('active');
+            if (subTab === 'resolved') document.getElementById('subTabResolved').classList.add('active');
+            loadComplaints(subTab);
+        }
+
+        function onAgencyChange() {
+            loadCandidates();
+            loadComplaints(currentComplaintTab);
+        }
+
+        // --- CANDIDATE METHODS ---
+        async function loadCandidates() {
+            const grid = document.getElementById("candidateGrid");
+            grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 3rem; color: #64748b; font-weight: 700;">Loading available candidate pool...</div>';
+
+            const country = document.getElementById("filterCountry").value;
+            const job = document.getElementById("filterJob").value;
+            const religion = document.getElementById("filterReligion").value;
+            const contractor = document.getElementById("activeContractor").value;
+
+            try {
+                const params = new URLSearchParams({ destination_country: country, job_applied: job, religion: religion, contractor: contractor });
+                const res = await fetch(`/api/method/applicant_processing.applicant_processing.api.get_portal_available_candidates?${params.toString()}`);
+                const data = await res.json();
+                allCandidates = data.message || [];
+                renderCandidates(allCandidates);
+            } catch (err) {
+                grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 2rem;">Unable to load candidate pool.</div>';
+            }
+        }
+
+        function renderCandidates(candidates) {
+            const grid = document.getElementById("candidateGrid");
+            const searchVal = document.getElementById("filterSearch").value.toLowerCase();
+            
+            const filtered = candidates.filter(c => {
+                if (!searchVal) return true;
+                const name = (c.full_name || `${c.first_name || ''} ${c.last_name || ''}`).toLowerCase();
+                return name.includes(searchVal) || (c.name || '').toLowerCase().includes(searchVal);
+            });
+
+            if (!filtered.length) {
+                grid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 3rem; background: white; border-radius: 12px; border: 1px dashed #cbd5e1;"><h4>No Available Candidates Found</h4><p style="color: #64748b; font-size: 0.85rem;">Try adjusting corridor or profession filters.</p></div>`;
+                return;
+            }
+
+            grid.innerHTML = filtered.map(c => {
+                const fullName = c.full_name || `${c.first_name || ''} ${c.last_name || ''}`;
+                const photoBody = c.photo_full_body || c.photo_passport;
+                const isLockedToMe = c.locked_contractor === document.getElementById("activeContractor").value;
+
+                return `
+                    <div class="candidate-card">
+                        <div class="card-header-banner">
+                            ${photoBody ? `<img src="${photoBody}" class="card-photo-body">` : `<div class="card-photo-fallback">${c.first_name ? c.first_name[0] : 'A'}</div>`}
+                            <div class="country-badge">${c.destination_country || 'Saudi Arabia'}</div>
+                        </div>
+                        <div class="card-body">
+                            <h3 class="candidate-name">${fullName}</h3>
+                            <div class="candidate-job">${c.job_applied || 'Housemaid'}</div>
+                            <div class="meta-specs">
+                                <div class="spec-item"><span class="spec-label">Age: </span><span class="spec-value">${c.age || '24'} Yrs</span></div>
+                                <div class="spec-item"><span class="spec-label">Salary: </span><span class="spec-value">${c.monthly_salary || '1000'} ${c.destination_country === 'Kuwait' ? 'KWD' : 'SAR'}</span></div>
+                                <div class="spec-item"><span class="spec-label">Religion: </span><span class="spec-value">${c.religion || 'Muslim'}</span></div>
+                                <div class="spec-item"><span class="spec-label">Status: </span><span class="spec-value">${c.applicant_state}</span></div>
+                            </div>
+                            <div class="card-actions">
+                                <a href="/app/applicant/${c.name}" target="_blank" class="btn-cv">View Desk</a>
+                                <button class="btn-select" id="btn-sel-${c.name}" onclick="selectCandidate('${c.name}', '${fullName}')">
+                                    ${isLockedToMe ? 'Reserved' : 'Select Candidate'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function selectCandidate(applicantId, fullName) {
+            const contractor = document.getElementById("activeContractor").value;
+            if (!confirm(`Select and lock candidate ${fullName} for agency ${contractor}?`)) return;
+
+            try {
+                const formData = new FormData();
+                formData.append("applicant_id", applicantId);
+                formData.append("contractor", contractor);
+
+                const res = await fetch("/api/method/applicant_processing.applicant_processing.api.portal_select_candidate", {
+                    method: "POST",
+                    body: formData,
+                    headers: { "X-Frappe-CSRF-Token": frappe?.csrf_token || "" }
+                });
+                const data = await res.json();
+                if (res.ok && data.message && data.message.status === "success") {
+                    showToast(`Candidate ${fullName} successfully reserved!`, "success");
+                    loadCandidates();
+                } else {
+                    showToast(data._server_messages || "Selection failed.", "error");
+                }
+            } catch (err) {
+                showToast("Selection error occurred.", "error");
+            }
+        }
+
+        // --- COMPLAINT METHODS ---
+        async function loadComplaints(tab = 'unresolved') {
+            const container = document.getElementById("complaintsContainer");
+            container.innerHTML = '<div style="text-align: center; padding: 2rem; color: #64748b;">Loading disputes...</div>';
+
+            const contractor = document.getElementById("activeContractor").value;
+
+            try {
+                const res = await fetch(`/api/method/applicant_processing.applicant_processing.api.get_agency_complaints?tab=${tab}&contractor=${encodeURIComponent(contractor)}`);
+                const data = await res.json();
+                const complaints = data.message || [];
+
+                if (tab === 'unresolved') document.getElementById('countUnresolved').innerText = complaints.length;
+                if (tab === 'new') document.getElementById('countNew').innerText = complaints.length;
+                if (tab === 'resolved') document.getElementById('countResolved').innerText = complaints.length;
+
+                renderComplaints(complaints, tab);
+            } catch (err) {
+                container.innerHTML = '<div style="text-align: center; padding: 2rem;">Unable to load complaints.</div>';
+            }
+        }
+
+        function renderComplaints(complaints, tab) {
+            const container = document.getElementById("complaintsContainer");
+            if (!complaints.length) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 3rem; background: white; border-radius: 12px; border: 1px dashed #cbd5e1;">
+                        <h4>No Complaints in ${tab.toUpperCase()} Queue</h4>
+                        <p style="color: #64748b; font-size: 0.85rem;">All disputes for this agency have been resolved or are up to date.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = complaints.map((c, idx) => {
+                const isUrgent = tab === 'unresolved';
+                const days = c.days_unresolved || 0;
+
+                return `
+                    <div class="complaint-card ${isUrgent ? 'urgent' : ''}">
+                        <div class="complaint-priority-badge ${c.severity === 'Critical / Emergency' ? 'critical' : 'high'}">
+                            #${idx + 1}
+                        </div>
+                        <div class="complaint-info">
+                            <h4>
+                                ${c.full_name || c.applicant}
+                                <span class="complaint-tag">${c.complaint_category}</span>
+                                <span class="complaint-tag" style="background: #eff6ff; color: #1d4ed8;">${c.severity}</span>
+                            </h4>
+                            <p class="complaint-details-text">${c.complaint_details}</p>
+                            ${c.resolution_notes ? `<p style="font-size: 0.8rem; color: #059669; font-weight: 700; margin-top: 4px;">Resolution: ${c.resolution_outcome} - ${c.resolution_notes}</p>` : ''}
+                        </div>
+                        <div class="complaint-timer">
+                            <div class="days-unresolved">${days} Days</div>
+                            <div class="timer-label">Unresolved Waiting Time</div>
+                        </div>
+                        <div>
+                            ${tab !== 'resolved' ? `<button class="btn-resolve" onclick="openResolveModal('${c.name}')">Resolve Dispute</button>` : `<span style="font-size: 0.8rem; font-weight: 700; color: #059669;">Resolved</span>`}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function openComplaintModal() {
+            document.getElementById('complaintModal').classList.add('active');
+        }
+
+        function closeComplaintModal() {
+            document.getElementById('complaintModal').classList.remove('active');
+        }
+
+        async function submitComplaintForm(e) {
+            e.preventDefault();
+            const contractor = document.getElementById("activeContractor").value;
+            const applicant = document.getElementById("cmpApplicant").value;
+            const category = document.getElementById("cmpCategory").value;
+            const severity = document.getElementById("cmpSeverity").value;
+            const details = document.getElementById("cmpDetails").value;
+
+            try {
+                const formData = new FormData();
+                formData.append("contractor", contractor);
+                formData.append("applicant", applicant);
+                formData.append("complaint_category", category);
+                formData.append("severity", severity);
+                formData.append("complaint_details", details);
+
+                const res = await fetch("/api/method/applicant_processing.applicant_processing.api.submit_agency_complaint", {
+                    method: "POST",
+                    body: formData,
+                    headers: { "X-Frappe-CSRF-Token": frappe?.csrf_token || "" }
+                });
+                const data = await res.json();
+                if (res.ok && data.message && data.message.status === "success") {
+                    showToast("Dispute logged with HIGHEST PRIORITY in welfare queue!", "success");
+                    closeComplaintModal();
+                    document.getElementById("formComplaint").reset();
+                    switchMainTab('complaints');
+                } else {
+                    showToast("Failed to file complaint.", "error");
+                }
+            } catch (err) {
+                showToast("Error submitting complaint.", "error");
+            }
+        }
+
+        function openResolveModal(complaintId) {
+            document.getElementById('resComplaintId').value = complaintId;
+            document.getElementById('resolveModal').classList.add('active');
+        }
+
+        function closeResolveModal() {
+            document.getElementById('resolveModal').classList.remove('active');
+        }
+
+        async function submitResolveForm(e) {
+            e.preventDefault();
+            const complaintId = document.getElementById('resComplaintId').value;
+            const outcome = document.getElementById('resOutcome').value;
+            const notes = document.getElementById('resNotes').value;
+
+            try {
+                const formData = new FormData();
+                formData.append("complaint_id", complaintId);
+                formData.append("outcome", outcome);
+                formData.append("resolution_notes", notes);
+
+                const res = await fetch("/api/method/applicant_processing.applicant_processing.api.resolve_agency_complaint", {
+                    method: "POST",
+                    body: formData,
+                    headers: { "X-Frappe-CSRF-Token": frappe?.csrf_token || "" }
+                });
+                const data = await res.json();
+                if (res.ok && data.message && data.message.status === "success") {
+                    showToast("Dispute successfully resolved!", "success");
+                    closeResolveModal();
+                    loadComplaints(currentComplaintTab);
+                } else {
+                    showToast("Failed to resolve dispute.", "error");
+                }
+            } catch (err) {
+                showToast("Resolution error.", "error");
+            }
+        }
+
+        function showToast(msg, type = "success") {
+            const container = document.getElementById("toast-container");
+            const toast = document.createElement("div");
+            toast.className = `toast ${type}`;
+            toast.innerText = msg;
+            container.appendChild(toast);
+            setTimeout(() => { toast.style.opacity = "0"; setTimeout(() => toast.remove(), 300); }, 4000);
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            loadCandidates();
+            document.getElementById("filterSearch").addEventListener("input", () => renderCandidates(allCandidates));
+            document.getElementById("filterCountry").addEventListener("change", loadCandidates);
+            document.getElementById("filterJob").addEventListener("change", loadCandidates);
+            document.getElementById("filterReligion").addEventListener("change", loadCandidates);
+        });
+    </script>
+</body>
+</html>

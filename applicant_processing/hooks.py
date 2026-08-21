@@ -26,7 +26,7 @@ app_license = "mit"
 
 # include js, css files in header of desk.html
 # app_include_css = "/assets/applicant_processing/css/applicant_processing.css"
-# app_include_js = "/assets/applicant_processing/js/applicant_processing.js"
+app_include_js = "/assets/applicant_processing/js/web_push.js"
 
 # include js, css files in header of web template
 # web_include_css = "/assets/applicant_processing/css/applicant_processing.css"
@@ -43,7 +43,9 @@ app_license = "mit"
 # page_js = {"page" : "public/js/file.js"}
 
 # include js in doctype views
-# doctype_js = {"doctype" : "public/js/doctype.js"}
+doctype_js = {
+	"Notification Settings": "public/js/notification_settings.js"
+}
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
@@ -149,8 +151,14 @@ app_license = "mit"
 # ----------------
 scheduler_events = {
 	"daily": [
-		"applicant_processing.applicant_processing.utils.push_api.check_medical_expirations"
-	]
+		"applicant_processing.applicant_processing.utils.push_api.check_medical_expirations",
+		"applicant_processing.applicant_processing.utils.push_api.check_lms_missing_data_requests"
+	],
+	"cron": {
+		"0 8 * * 1,4": [
+			"applicant_processing.applicant_processing.utils.push_api.check_pending_wakalas_biweekly"
+		]
+	}
 }
 
 
