@@ -186,17 +186,26 @@
         }
 
         async sendTestPush() {
+            let me = this;
             return frappe.call({
                 method: "applicant_processing.applicant_processing.utils.push_api.send_test_web_push",
                 freeze: true,
                 freeze_message: __("Dispatching Chrome Desktop Notification..."),
                 callback: function (r) {
-                    if (!r.exc && r.message && r.message.status === "success") {
-                        frappe.msgprint({
-                            title: __("Notification Sent"),
-                            indicator: "green",
-                            message: __("A rectangular notification has been dispatched to Chrome!")
-                        });
+                    if (!r.exc && r.message) {
+                        if (r.message.status === "success") {
+                            frappe.msgprint({
+                                title: __("Notification Sent"),
+                                indicator: "green",
+                                message: __("A rectangular notification has been dispatched to Chrome!")
+                            });
+                        } else {
+                            frappe.msgprint({
+                                title: __("Browser Not Paired on this Domain"),
+                                indicator: "orange",
+                                message: __(r.message.message || "Please click 'Enable Desktop Alerts' to pair this browser on this domain.")
+                            });
+                        }
                     }
                 }
             });

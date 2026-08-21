@@ -175,15 +175,10 @@ def send_web_push(user, title, body, url=None, icon=None, badge=None):
 		payload_str = json.dumps(payload)
 
 		for s in subs:
-			if frappe.flags.in_test:
+			try:
 				_dispatch_web_push_record(s.name, payload_str)
-			else:
-				frappe.enqueue(
-					"applicant_processing.applicant_processing.utils.push_api._dispatch_web_push_record",
-					queue="short",
-					sub_name=s.name,
-					payload_str=payload_str
-				)
+			except Exception as e:
+				frappe.log_error(title=f"WebPush dispatch failed for {s.name}", message=str(e))
 	except Exception as e:
 		frappe.log_error(title=f"send_web_push failed for {user}", message=str(e))
 

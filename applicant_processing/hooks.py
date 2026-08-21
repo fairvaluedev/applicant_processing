@@ -162,8 +162,7 @@ scheduler_events = {
 }
 
 
-# Translation
-# ------------
-# List of apps whose translatable strings should be excluded from this app's translations.
-# ignore_translatable_strings_from = []
+# Migration Hooks
+# ---------------
+after_migrate = "applicant_processing.applicant_processing.utils.push_api.ensure_vapid_keys"
 
