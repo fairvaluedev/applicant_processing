@@ -131,7 +131,9 @@ def _dispatch_web_push_record(sub_name, payload_str):
 			data=payload_str,
 			vapid_private_key=vapid_obj,
 			vapid_claims=claims,
-			timeout=10
+			ttl=86400,  # Retain in Google FCM / Mozilla push queue for 24h while PC is off/offline
+			headers={"Urgency": "high", "TTL": "86400"},
+			timeout=15
 		)
 	except Exception as e:
 		# Check for subscription expired (404/410)

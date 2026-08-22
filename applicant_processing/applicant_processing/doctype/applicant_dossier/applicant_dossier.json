@@ -26,6 +26,7 @@
   "contract_number",
   "visa_number",
   "contract_date",
+  "contract_end_date",
   "contract_elapsed_days",
   "col_break_overview",
   "contract_duration",
@@ -187,6 +188,11 @@
    "fieldname": "contract_date",
    "fieldtype": "Date",
    "label": "Contract Date"
+  },
+  {
+   "fieldname": "contract_end_date",
+   "fieldtype": "Date",
+   "label": "Contract End Date"
   },
   {
    "fieldname": "contract_elapsed_days",

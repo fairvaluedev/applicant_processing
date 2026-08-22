@@ -6,7 +6,7 @@ ENV PYTHONUNBUFFERED=1 \
     SHELL=/bin/bash
 
 # 1. Install OS system dependencies, Node.js 20 LTS, and wkhtmltopdf
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update -o Acquire::Retries=3 && apt-get install -y --no-install-recommends \
     curl \
     git \
     build-essential \
@@ -18,7 +18,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxrender1 \
     libxext6 \
     fonts-dejavu \
-    fonts-noto-cjk \
     fonts-noto-color-emoji \
     wkhtmltopdf \
     tesseract-ocr \

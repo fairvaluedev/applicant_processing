@@ -78,18 +78,14 @@
                 const vapidKey = await this.getVapidKey();
                 const convertedVapidKey = urlBase64ToUint8Array(vapidKey);
 
-                // Unsubscribe any old mismatched subscription to ensure perfect VAPID alignment
-                const existingSub = await this.registration.pushManager.getSubscription();
-                if (existingSub) {
-                    try {
-                        await existingSub.unsubscribe();
-                    } catch (e) {}
-                }
+                let subscription = await this.registration.pushManager.getSubscription();
 
-                const subscription = await this.registration.pushManager.subscribe({
-                    userVisibleOnly: true,
-                    applicationServerKey: convertedVapidKey
-                });
+                if (!subscription) {
+                    subscription = await this.registration.pushManager.subscribe({
+                        userVisibleOnly: true,
+                        applicationServerKey: convertedVapidKey
+                    });
+                }
 
                 const rawKey = subscription.getKey ? subscription.getKey("p256dh") : null;
                 const key = rawKey ? btoa(String.fromCharCode.apply(null, new Uint8Array(rawKey))) : "";

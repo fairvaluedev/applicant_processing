@@ -10,6 +10,13 @@ class ApplicantDossier(Document):
 	def validate(self):
 		self.populate_from_contract_request()
 		self._calculate_contract_elapsed_days()
+		self._calculate_contract_end_date()
+
+	def _calculate_contract_end_date(self):
+		"""Calculates contract end date by adding contract duration to contract date."""
+		if self.contract_date and not self.contract_end_date:
+			from applicant_processing.applicant_processing.utils.contract_parser import calculate_contract_end_date
+			self.contract_end_date = calculate_contract_end_date(self.contract_date, self.contract_duration or "2 Years")
 
 	def populate_from_contract_request(self):
 		"""Populates Applicant, CV Record, Contractor, and Statuses from the selected Contract Request."""

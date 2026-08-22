@@ -181,6 +181,20 @@ def parse_mrz_date(yymmdd_str, is_expiry=False):
     except Exception:
         return None
 
+def infer_passport_issue_date(passport_expiry_str):
+    """
+    Infers passport issue date by subtracting 5 years from passport expiry date.
+    e.g. 2031-08-21 -> 2026-08-21
+    """
+    if not passport_expiry_str:
+        return None
+    try:
+        from dateutil.relativedelta import relativedelta
+        exp_date = getdate(passport_expiry_str)
+        return str(exp_date - relativedelta(years=5))
+    except Exception:
+        return None
+
 def parse_mrz_td3(line1, line2):
     """
     Parses standard Type 3 (TD3) Passport MRZ (2 lines x 44 characters).
@@ -265,6 +279,7 @@ def parse_mrz_td3(line1, line2):
 
     result["date_of_birth"] = parse_mrz_date(corr_dob, is_expiry=False)
     result["passport_expiry"] = parse_mrz_date(corr_exp, is_expiry=True)
+    result["passport_issue_date"] = infer_passport_issue_date(result["passport_expiry"])
 
     if sex_char == "F":
         result["gender"] = "Female"
@@ -324,6 +339,7 @@ def parse_mrz_td1(line1, line2, line3):
         "place_of_issue": ISO_ALPHA3_TO_COUNTRY.get(issuing_country_code, issuing_country_code or "Ethiopia"),
         "date_of_birth": parse_mrz_date(corr_dob, is_expiry=False),
         "passport_expiry": parse_mrz_date(corr_exp, is_expiry=True),
+        "passport_issue_date": infer_passport_issue_date(parse_mrz_date(corr_exp, is_expiry=True)),
         "gender": gender,
         "confidence_score": 90.0 if (val_doc and val_dob and val_exp) else 60.0,
     }
@@ -487,6 +503,7 @@ def extract_visual_passport_data(text):
         "place_of_birth": place_of_birth,
         "date_of_birth": dob,
         "passport_expiry": exp,
+        "passport_issue_date": infer_passport_issue_date(exp),
         "gender": gender,
         "confidence_score": 85.0,
         "checksum_validation": {"passport_number": {"valid": True, "clean": passport_num}}
@@ -823,6 +840,8 @@ def parse_passport_document(file_url=None, applicant_name=None, raw_mrz_text=Non
             app.gender = parsed_data["gender"]
         if parsed_data.get("passport_expiry"):
             app.passport_expiry = parsed_data["passport_expiry"]
+        if parsed_data.get("passport_issue_date"):
+            app.passport_issue_date = parsed_data["passport_issue_date"]
         if parsed_data.get("place_of_issue"):
             app.place_of_issue = parsed_data["place_of_issue"]
         if parsed_data.get("place_of_birth") and not app.place_of_birth:

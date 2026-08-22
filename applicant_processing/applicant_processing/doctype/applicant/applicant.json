@@ -107,6 +107,10 @@
   "missing_data_indicator",
   "locked_contractor",
   "locked_at",
+  "commission_status",
+  "commission_amount",
+  "commission_paid_date",
+  "commission_batch_ref",
   "financials_sec",
   "total_income",
   "total_expense",
@@ -681,6 +685,30 @@
    "fieldtype": "Datetime",
    "label": "Selection Lock Timestamp",
    "read_only": 1
+  },
+  {
+   "default": "Unpaid",
+   "fieldname": "commission_status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Agency Commission Status",
+   "options": "Unpaid\nPaid\nWaived"
+  },
+  {
+   "fieldname": "commission_amount",
+   "fieldtype": "Currency",
+   "label": "Commission Amount"
+  },
+  {
+   "fieldname": "commission_paid_date",
+   "fieldtype": "Date",
+   "label": "Commission Paid Date"
+  },
+  {
+   "fieldname": "commission_batch_ref",
+   "fieldtype": "Data",
+   "label": "Commission Batch / Invoice Ref"
   },
   {
    "fieldname": "financials_sec",

@@ -140,6 +140,34 @@ def extract_text_with_pymupdf(file_path):
 # ─────────────────────────────────────────────────────────────────────────────
 # 3. Contract Schema & Field Extraction Logic
 # ─────────────────────────────────────────────────────────────────────────────
+def calculate_contract_end_date(contract_date, duration_str="2 Years"):
+    """
+    Computes contract end date by adding contract duration to start/contract date.
+    Supports English and Arabic duration strings: '2 Years', '24 Months', 'سنتين', '1 Year', etc.
+    """
+    if not contract_date:
+        return None
+    try:
+        from dateutil.relativedelta import relativedelta
+        start = getdate(contract_date)
+        dur_str = str(duration_str or "2 Years").strip().lower()
+
+        if "month" in dur_str or "شهر" in dur_str:
+            m = re.search(r'\d+', dur_str)
+            months = int(m.group(0)) if m else 24
+            return str(start + relativedelta(months=months))
+        elif "سنتين" in dur_str:
+            return str(start + relativedelta(years=2))
+        elif "year" in dur_str or "سنة" in dur_str:
+            m = re.search(r'\d+', dur_str)
+            years = int(m.group(0)) if m else 2
+            return str(start + relativedelta(years=years))
+        else:
+            return str(start + relativedelta(years=2))
+    except Exception:
+        return None
+
+
 def parse_structured_contract_text(full_text_or_blocks):
     """
     Parses full contract text into structured dictionary matching the complete
@@ -154,6 +182,8 @@ def parse_structured_contract_text(full_text_or_blocks):
         "contract_number": None,
         "visa_number": None,
         "contract_date": None,
+        "contract_start_date": None,
+        "contract_end_date": None,
         "contract_duration": None,
         "amount_detail": None,
         "monthly_salary": None,
@@ -215,6 +245,11 @@ def parse_structured_contract_text(full_text_or_blocks):
         data["contract_duration"] = m.group(1).strip()
     else:
         data["contract_duration"] = "2 Years"
+
+    # Compute Contract Start & End Dates
+    if data.get("contract_date"):
+        data["contract_start_date"] = data["contract_date"]
+        data["contract_end_date"] = calculate_contract_end_date(data["contract_date"], data.get("contract_duration"))
 
     # Salary / Amount Detail (e.g., "1000 SAR" or "1,000 SR" or "1000 ريال")
     m = re.search(r'(?:salary|monthly\s*salary|amount|الأجر\s*الشهري|الراتب)\s*[:=\-]?\s*([0-9,.]+\s*(?:SAR|SR|USD|ETB|ريال)?)', text, re.IGNORECASE)
@@ -400,6 +435,8 @@ def parse_contract_document(file_url=None, dossier_name=None, raw_text=None):
             dos.visa_number = extracted_data["visa_number"]
         if extracted_data.get("contract_date"):
             dos.contract_date = extracted_data["contract_date"]
+        if extracted_data.get("contract_end_date") and hasattr(dos, "contract_end_date"):
+            dos.contract_end_date = extracted_data["contract_end_date"]
         if extracted_data.get("contract_duration"):
             dos.contract_duration = extracted_data["contract_duration"]
         if extracted_data.get("amount_detail"):
