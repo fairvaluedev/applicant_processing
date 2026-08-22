@@ -460,8 +460,19 @@ def parse_contract_document(file_url=None, dossier_name=None, raw_text=None):
         dos.is_parsed = 1
         dos.save(ignore_permissions=True)
 
-        # Recalculate applicant state (advances to Selected)
+        # Auto-lock applicant to contractor and advance state to Selected
         if dos.applicant:
+            target_contractor = dos.contractor_name or dos.agency
+            if target_contractor:
+                app_doc = frappe.get_doc("Applicant", dos.applicant)
+                if not app_doc.locked_contractor or app_doc.locked_contractor != target_contractor:
+                    from frappe.utils import now_datetime
+                    app_doc.locked_contractor = target_contractor
+                    app_doc.locked_at = now_datetime()
+                    if app_doc.applicant_state in ("Draft", "Registered", "CV Generated", "Data Complete"):
+                        app_doc.applicant_state = "Selected"
+                    app_doc.save(ignore_permissions=True)
+
             from applicant_processing.applicant_processing.doctype.applicant.applicant import recalculate_applicant_state
             recalculate_applicant_state(dos.applicant)
 

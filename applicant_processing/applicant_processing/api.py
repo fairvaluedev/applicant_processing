@@ -555,231 +555,124 @@ def send_manual_wakala_reminder(dsr_name=None, dossier_name=None, channel="both"
 
 
 # =========================================================================
-# FOREIGN AGENCY COMPLAINT WORKBENCH (Highest Priority & Multi-Tab Desk)
+# MULTI-TENANT AGENCY PORTAL & DISPUTE WORKBENCH (Production-Hardened)
 # =========================================================================
 
-@frappe.whitelist(allow_guest=True)
-def get_agency_complaints(tab="unresolved", contractor=None):
+def _get_effective_contractor_for_session(requested_contractor=None):
     """
-    Returns complaints for the multi-tab Complaints Desk:
-    - 'new': Freshly logged complaints (status = Open)
-    - 'unresolved': Active disputes ordered by LONGEST UNRESOLVED FIRST (oldest pending at top)
-    - 'resolved': Archived resolution history
+    Resolves the partner agency (Contractor) context securely based on frappe.session.user.
+    - If user is Guest: Throws AuthenticationError.
+    - If Administrator / System Manager / LMS Employee / Accounts Manager:
+      Allowed to view or act on behalf of requested_contractor (or fallback to active contractor).
+    - If Foreign Agency user:
+      Finds the Contractor record strictly linked by email == session.user OR user == session.user OR name == session.user.
+      Overrides requested_contractor with the authenticated user's Contractor ID.
+      Guarantees complete multi-tenant data isolation: no agency can see or act on another agency's data.
     """
-    filters = {}
-    if contractor:
-        filters["contractor"] = contractor
+    if not frappe.session.user or frappe.session.user == "Guest":
+        frappe.throw("Authentication required. Please log in.", frappe.AuthenticationError)
 
-    if tab == "new":
-        filters["status"] = "Open"
-        order_by = "creation desc"
-    elif tab == "resolved":
-        filters["status"] = ["in", ["Resolved", "Returned / Free Replacement Required", "Escalated to MoL / Embassy", "Dismissed / Closed"]]
-        order_by = "resolved_at desc, modified desc"
-    else:  # 'unresolved' (default) — all open + under-investigation, oldest first
-        filters["status"] = ["in", ["Open", "Under Investigation"]]
-        order_by = "creation asc"
+    user_roles = frappe.get_roles(frappe.session.user)
+    is_internal = any(r in user_roles for r in ("System Manager", "Administrator", "LMS Employee", "Accounts Manager"))
 
-    complaints = frappe.get_all(
-        "Agency Complaint",
-        filters=filters,
-        fields=[
-            "name", "contractor", "applicant", "full_name", "passport_number",
-            "complaint_category", "severity", "status", "complaint_details",
-            "assigned_officer", "resolution_outcome", "resolution_notes", "return_date", "creation", "resolved_at"
-        ],
-        order_by=order_by
-    )
+    if is_internal:
+        if requested_contractor:
+            if not frappe.db.exists("Contractor", requested_contractor):
+                frappe.throw(f"Partner Agency '{requested_contractor}' not found.", frappe.DoesNotExistError)
+            return requested_contractor
+        # Return first active contractor as fallback if none requested
+        return frappe.db.get_value("Contractor", {"active_status": 1}, "name")
 
-    from frappe.utils import date_diff, today, getdate
-    curr_today = getdate(today())
+    # Foreign Agency User: Find contractor strictly linked to this user's account
+    contractor_name = frappe.db.get_value("Contractor", {"email": frappe.session.user, "active_status": 1}, "name")
+    if not contractor_name and hasattr(frappe.db, "has_column") and frappe.db.has_column("Contractor", "user"):
+        contractor_name = frappe.db.get_value("Contractor", {"user": frappe.session.user, "active_status": 1}, "name")
+    if not contractor_name:
+        contractor_name = frappe.db.get_value("Contractor", {"name": frappe.session.user, "active_status": 1}, "name")
 
-    for c in complaints:
-        c["days_unresolved"] = max(0, date_diff(curr_today, getdate(c["creation"])))
-
-    return complaints
-
-
-@frappe.whitelist(allow_guest=True)
-def search_applicants_for_complaint(query):
-    """
-    Live search for applicants to attach to a complaint.
-    Searches by: full name, first name, last name, or passport number.
-    Returns top 10 matches with ID, name, and passport for the complaint form autocomplete.
-    """
-    if not query or len(str(query).strip()) < 2:
-        return []
-
-    q = str(query).strip()
-
-    # Try exact ID match first
-    if frappe.db.exists("Applicant", q):
-        app = frappe.get_doc("Applicant", q)
-        return [{
-            "id": app.name,
-            "full_name": app.full_name or f"{app.first_name or ''} {app.last_name or ''}".strip(),
-            "passport_number": app.passport_number or "",
-            "destination_country": app.destination_country or "",
-            "applicant_state": app.applicant_state or ""
-        }]
-
-    # Fuzzy search by name or passport
-    results = frappe.db.sql("""
-        SELECT
-            name, full_name, first_name, last_name,
-            passport_number, destination_country, applicant_state
-        FROM `tabApplicant`
-        WHERE
-            full_name LIKE %(q)s
-            OR CONCAT(first_name, ' ', last_name) LIKE %(q)s
-            OR passport_number LIKE %(q)s
-        ORDER BY creation DESC
-        LIMIT 10
-    """, {"q": f"%{q}%"}, as_dict=True)
-
-    return [
-        {
-            "id": r.name,
-            "full_name": r.full_name or f"{r.first_name or ''} {r.last_name or ''}".strip(),
-            "passport_number": r.passport_number or "",
-            "destination_country": r.destination_country or "",
-            "applicant_state": r.applicant_state or ""
-        }
-        for r in results
-    ]
-
-
-@frappe.whitelist(allow_guest=True)
-def submit_agency_complaint(contractor, applicant_search, complaint_category, complaint_details, severity="High", attachment=None):
-    """
-    API endpoint for foreign partner agencies or local staff to log a formal dispute.
-    'applicant_search' can be: Applicant ID (APP-00001), full name, or passport number.
-    Performs fuzzy resolution to the correct Applicant record before inserting.
-    """
-    if not contractor or not applicant_search or not complaint_category or not complaint_details:
-        frappe.throw("Contractor, Applicant, Complaint Category, and Details are required.")
-
-    # --- Resolve applicant_search → Applicant document ID ---
-    resolved_id = None
-
-    # 1. Try direct ID match
-    if frappe.db.exists("Applicant", applicant_search):
-        resolved_id = applicant_search
-
-    # 2. Try by passport number
-    if not resolved_id:
-        resolved_id = frappe.db.get_value("Applicant", {"passport_number": applicant_search}, "name")
-
-    # 3. Try by full_name exact
-    if not resolved_id:
-        resolved_id = frappe.db.get_value("Applicant", {"full_name": applicant_search}, "name")
-
-    # 4. Try LIKE match on full_name (first result)
-    if not resolved_id:
-        rows = frappe.db.sql("""
-            SELECT name FROM `tabApplicant`
-            WHERE full_name LIKE %(q)s
-            LIMIT 1
-        """, {"q": f"%{applicant_search}%"}, as_dict=True)
-        if rows:
-            resolved_id = rows[0].name
-
-    if not resolved_id:
+    if not contractor_name:
         frappe.throw(
-            f"Worker '{applicant_search}' not found in system. "
-            f"Please search by applicant ID (APP-XXXXX), full name, or passport number."
+            "Your user account is not linked to an active Partner Agency. Please contact the administrator.",
+            frappe.PermissionError
         )
 
-    complaint = frappe.get_doc({
-        "doctype": "Agency Complaint",
-        "contractor": contractor,
-        "applicant": resolved_id,
-        "complaint_category": complaint_category,
-        "severity": severity,
-        "complaint_details": complaint_details,
-        "attachment_evidence": attachment,
-        "status": "Open"
-    })
-    complaint.insert(ignore_permissions=True)
-    frappe.db.commit()
+    return contractor_name
+
+
+@frappe.whitelist()
+def get_my_agency_context():
+    """
+    Single bootstrap endpoint for the custom frontend.
+    Returns logged-in user profile, linked Contractor record, country, currency,
+    VAPID public key for Web Push, and quick portal stats in ONE call.
+    """
+    if not frappe.session.user or frappe.session.user == "Guest":
+        frappe.throw("Authentication required. Please log in.", frappe.AuthenticationError)
+
+    user_roles = frappe.get_roles(frappe.session.user)
+    is_internal = any(r in user_roles for r in ("System Manager", "Administrator", "LMS Employee", "Accounts Manager"))
+    user_doc = frappe.get_doc("User", frappe.session.user)
+
+    contractor_name = None
+    contractor_data = {}
+    try:
+        contractor_name = _get_effective_contractor_for_session()
+        if contractor_name:
+            c_doc = frappe.get_doc("Contractor", contractor_name)
+            contractor_data = {
+                "name": c_doc.name,
+                "company_name": c_doc.company_name,
+                "country": c_doc.country,
+                "contact_person": c_doc.contact_person or "—",
+                "phone": c_doc.phone or c_doc.whatsapp or "—",
+                "email": c_doc.email or "—",
+                "default_commission_amount": c_doc.default_commission_amount or 1000.0,
+                "default_commission_currency": c_doc.default_commission_currency or "SAR",
+                "active_status": c_doc.active_status
+            }
+    except Exception:
+        pass
+
+    # Get VAPID public key for Web Push subscription
+    vapid_public_key = None
+    try:
+        from applicant_processing.applicant_processing.utils.push_api import get_vapid_keys
+        _, vapid_public_key = get_vapid_keys()
+    except Exception:
+        pass
+
+    portal_stats = get_portal_stats(contractor=contractor_name) if contractor_name else {}
 
     return {
-        "status": "success",
-        "complaint_id": complaint.name,
-        "applicant_resolved": resolved_id,
-        "message": f"Complaint #{complaint.name} logged. Worker: {resolved_id}. Highest Priority."
+        "user": frappe.session.user,
+        "full_name": user_doc.full_name or frappe.session.user,
+        "roles": user_roles,
+        "is_internal_staff": is_internal,
+        "contractor": contractor_data,
+        "vapid_public_key": vapid_public_key,
+        "portal_stats": portal_stats
     }
 
 
-@frappe.whitelist(allow_guest=True)
-def resolve_agency_complaint(complaint_id, outcome, resolution_notes, return_date=None, replacement_applicant=None):
-    """
-    Resolves an Agency Complaint with one of the 4 standardized outcomes:
-    - 'Resolved'
-    - 'Returned / Free Replacement Required' (auto-provisions replacement at $0 commission)
-    - 'Escalated'
-    - 'Dismissed'
-    """
-    if not complaint_id or not outcome or not resolution_notes:
-        frappe.throw("Complaint ID, Resolution Outcome, and Notes are required.")
-
-    # Outcome → status mapping (SRS 6.9 resolution outcomes)
-    OUTCOME_STATUS_MAP = {
-        "Resolved": "Resolved",
-        "Returned / Free Replacement Required": "Returned / Free Replacement Required",
-        "Escalated": "Escalated to MoL / Embassy",
-        "Dismissed": "Dismissed / Closed",
-    }
-    new_status = OUTCOME_STATUS_MAP.get(outcome, outcome)  # fallback: use outcome as-is
-
-    from frappe.utils import now_datetime
-    complaint = frappe.get_doc("Agency Complaint", complaint_id)
-    complaint.resolution_outcome = outcome
-    complaint.resolution_notes = resolution_notes
-    complaint.status = new_status          # ← CRITICAL FIX: was missing before
-    complaint.resolved_at = now_datetime() # ← CRITICAL FIX: timestamp for SLA tracking
-
-    if return_date:
-        complaint.return_date = return_date
-    if replacement_applicant:
-        complaint.replacement_applicant = replacement_applicant
-        complaint.is_free_replacement_created = 1
-
-    complaint.save(ignore_permissions=True)
-    frappe.db.commit()
-
-    return {
-        "status": "success",
-        "complaint_id": complaint_id,
-        "new_status": new_status,
-        "message": f"Complaint {complaint_id} resolved → {new_status}."
-    }
-
-
-# =========================================================================
-# FOREIGN AGENCY SELECTION PORTAL API (Module 3: Direct Candidate Selection)
-# =========================================================================
-
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def get_portal_available_candidates(contractor=None, destination_country=None, job_applied=None, religion=None, limit=50):
     """
-    Returns the pool of available candidates for foreign agencies to browse and select:
-    - Scoped to destination country (e.g. Saudi Arabia, Kuwait)
-    - Filtered to unreserved candidates (locked_contractor IS NULL or locked by current agency)
-    - Pre-computed photo URLs and skill highlights
+    Returns the pool of available candidates for foreign agencies to browse:
+    - Scoped to unreserved candidates (locked_contractor IS NULL or locked by current agency)
+    - Filtered by destination country, job applied, religion
+    - Includes photo URLs, skill highlights, and CV download URLs
     """
-    conditions = ["app.applicant_state IN ('CV Generated', 'Registered', 'Data Complete')"]
-    values = {}
+    effective_contractor = _get_effective_contractor_for_session(contractor)
+
+    conditions = [
+        "app.applicant_state IN ('CV Generated', 'Registered', 'Data Complete')",
+        "(app.locked_contractor IS NULL OR app.locked_contractor = '' OR app.locked_contractor = %(contractor)s)"
+    ]
+    values = {"contractor": effective_contractor}
 
     if destination_country:
         conditions.append("app.destination_country = %(destination_country)s")
         values["destination_country"] = destination_country
-
-    if contractor:
-        conditions.append("(app.locked_contractor IS NULL OR app.locked_contractor = '' OR app.locked_contractor = %(contractor)s)")
-        values["contractor"] = contractor
-    else:
-        conditions.append("(app.locked_contractor IS NULL OR app.locked_contractor = '')")
 
     if job_applied:
         conditions.append("app.job_applied = %(job_applied)s")
@@ -828,24 +721,185 @@ def get_portal_available_candidates(contractor=None, destination_country=None, j
 
     candidates = frappe.db.sql(sql, values, as_dict=True)
 
-    # Attach CV download links if CV Record exists
     for c in candidates:
-        cv_pdf = frappe.db.get_value("CV Record", {"applicant": c["name"]}, "file_attachment")
-        c["cv_file_url"] = cv_pdf
+        full_name = c.get("full_name") or f"{c.get('first_name', '')} {c.get('last_name', '')}".strip() or "Candidate"
+        c["full_name"] = full_name
+        c["cv_file_url"] = frappe.db.get_value("CV Record", {"applicant": c["name"]}, "file_attachment")
+        c["is_locked_by_me"] = bool(c.get("locked_contractor") and c.get("locked_contractor") == effective_contractor)
 
     return candidates
 
 
-@frappe.whitelist(allow_guest=True)
-def portal_select_candidate(applicant_id, contractor):
+@frappe.whitelist()
+def get_agency_candidate_detail(applicant_id, contractor=None):
+    """
+    Returns full candidate profile for the agency modal / detail page.
+    Enforces multi-tenant security: if candidate is reserved by another agency, throws PermissionError.
+    """
+    if not applicant_id or not frappe.db.exists("Applicant", applicant_id):
+        frappe.throw(f"Applicant '{applicant_id}' not found.", frappe.DoesNotExistError)
+
+    effective_contractor = _get_effective_contractor_for_session(contractor)
+    user_roles = frappe.get_roles(frappe.session.user)
+    is_internal = any(r in user_roles for r in ("System Manager", "Administrator", "LMS Employee", "Accounts Manager"))
+
+    app = frappe.get_doc("Applicant", applicant_id)
+
+    # Multi-tenant lock check
+    if app.locked_contractor and app.locked_contractor != effective_contractor and not is_internal:
+        frappe.throw(
+            "This candidate has been reserved by another partner agency and is not available.",
+            frappe.PermissionError
+        )
+
+    cv_pdf = frappe.db.get_value("CV Record", {"applicant": app.name}, "file_attachment")
+
+    # Linked Dossier & DSR milestones
+    dossier = frappe.db.get_value(
+        "Applicant Dossier",
+        {"applicant": app.name},
+        ["name", "sponsor_name", "visa_number", "contract_date", "contract_duration"],
+        as_dict=True
+    )
+
+    ticket = None
+    departure = None
+    if dossier:
+        dsr_name = frappe.db.get_value("DSR", {"applicant_dossier": dossier.name}, "name")
+        if dsr_name:
+            ticket = frappe.db.get_value(
+                "DSR Ticket",
+                {"dsr": dsr_name},
+                ["airline", "flight_number", "flight_date", "route", "status"],
+                as_dict=True
+            )
+            departure = frappe.db.get_value(
+                "DSR Departure",
+                {"dsr": dsr_name},
+                ["departure_time", "status"],
+                as_dict=True
+            )
+
+    is_locked_by_me = bool(app.locked_contractor and app.locked_contractor == effective_contractor)
+
+    return {
+        "name": app.name,
+        "full_name": app.full_name or f"{app.first_name or ''} {app.last_name or ''}".strip() or "Candidate",
+        "first_name": app.first_name,
+        "last_name": app.last_name,
+        "passport_number": app.passport_number or "—",
+        "gender": app.gender,
+        "age": app.age,
+        "date_of_birth": app.date_of_birth,
+        "nationality": app.nationality or "Ethiopian",
+        "destination_country": app.destination_country or "Saudi Arabia",
+        "religion": app.religion,
+        "marital_status": app.marital_status,
+        "children": app.children,
+        "job_applied": app.job_applied or "General Domestic Worker",
+        "monthly_salary": app.monthly_salary,
+        "highest_education": app.highest_education,
+        "photo_passport": app.photo_passport,
+        "photo_full_body": app.photo_full_body,
+        "skills": {
+            "cleaning": bool(app.skill_cleaning),
+            "cooking": bool(app.skill_cooking),
+            "arabic_cooking": bool(app.skill_arabic_cooking),
+            "baby_sitting": bool(app.skill_baby_sitting),
+            "elderly_care": bool(app.skill_elderly_care),
+            "sewing": bool(app.skill_sewing),
+        },
+        "experience_country": app.experience_country,
+        "experience_period": app.experience_period,
+        "applicant_state": app.applicant_state,
+        "locked_contractor": app.locked_contractor,
+        "locked_at": app.locked_at,
+        "is_locked_by_me": is_locked_by_me,
+        "cv_file_url": cv_pdf,
+        "dossier": dossier,
+        "ticket": ticket,
+        "departure": departure
+    }
+
+
+@frappe.whitelist()
+def get_agency_pipeline_candidates(contractor=None, stage="all", limit=50):
+    """
+    Returns candidates selected / processing / deployed for this partner agency,
+    with real-time progress across recruitment milestones (Contract, Ticket, Departure).
+    Stages: 'all', 'Selected', 'Processing', 'Stamped', 'Ticketed', 'Departed'
+    """
+    effective_contractor = _get_effective_contractor_for_session(contractor)
+
+    conditions = [
+        """(
+            app.locked_contractor = %(contractor)s
+            OR dos.contractor_name = %(contractor)s
+            OR dsr.contractor_name = %(contractor)s
+        )"""
+    ]
+    values = {"contractor": effective_contractor}
+
+    if stage and stage.lower() != "all":
+        conditions.append("app.applicant_state = %(stage)s")
+        values["stage"] = stage
+
+    where_clause = " AND ".join(conditions)
+    sql = f"""
+        SELECT
+            app.name,
+            app.full_name,
+            app.first_name,
+            app.last_name,
+            app.passport_number,
+            app.destination_country,
+            app.job_applied,
+            app.applicant_state,
+            app.locked_at,
+            app.photo_passport,
+            dos.name AS dossier_name,
+            dos.sponsor_name,
+            dos.visa_number,
+            dos.contract_date,
+            dos.contract_duration,
+            tkt.airline,
+            tkt.flight_number,
+            tkt.flight_date,
+            tkt.route,
+            tkt.status AS ticket_status,
+            dep.departure_time,
+            dep.status AS departure_status
+        FROM `tabApplicant` app
+        LEFT JOIN `tabApplicant Dossier` dos ON dos.applicant = app.name
+        LEFT JOIN `tabDSR` dsr ON dsr.applicant_dossier = dos.name
+        LEFT JOIN `tabDSR Ticket` tkt ON tkt.dsr = dsr.name
+        LEFT JOIN `tabDSR Departure` dep ON dep.dsr = dsr.name
+        WHERE {where_clause}
+        GROUP BY app.name
+        ORDER BY app.modified DESC
+        LIMIT {int(limit)}
+    """
+    rows = frappe.db.sql(sql, values, as_dict=True)
+
+    for r in rows:
+        full_name = r.get("full_name") or f"{r.get('first_name', '')} {r.get('last_name', '')}".strip() or "Candidate"
+        r["full_name"] = full_name
+        r["cv_file_url"] = frappe.db.get_value("CV Record", {"applicant": r["name"]}, "file_attachment")
+
+    return rows
+
+
+@frappe.whitelist()
+def portal_select_candidate(applicant_id, contractor=None):
     """
     Atomic Candidate Selection Gate:
-    Locks an applicant to the requesting foreign partner agency using SELECT FOR UPDATE
-    to prevent sub-second multi-agency collisions.
-    Auto-creates/promotes a Contract Request in 'Accepted' status.
+    Locks an applicant to the requesting partner agency using SELECT FOR UPDATE
+    to prevent sub-second multi-agency race conditions.
     """
-    if not applicant_id or not contractor:
-        frappe.throw("Applicant ID and Contractor (Foreign Agency) are required.")
+    if not applicant_id:
+        frappe.throw("Applicant ID is required.")
+
+    effective_contractor = _get_effective_contractor_for_session(contractor)
 
     # 1. Acquire Atomic Row Lock
     row = frappe.db.sql("""
@@ -860,31 +914,31 @@ def portal_select_candidate(applicant_id, contractor):
 
     app = row[0]
 
-    if app.get("locked_contractor") and app.get("locked_contractor") != contractor:
+    if app.get("locked_contractor") and app.get("locked_contractor") != effective_contractor:
         frappe.throw(
             f"Candidate was just selected by another partner agency ({app.get('locked_contractor')}).",
             frappe.DuplicateEntryError
         )
 
-    if app.get("applicant_state") not in ("CV Generated", "Registered", "Draft"):
+    if app.get("applicant_state") not in ("CV Generated", "Registered", "Data Complete", "Draft"):
         frappe.throw(f"Candidate cannot be selected. Current lifecycle state: {app.get('applicant_state')}.")
 
     # 2. Lock candidate to this agency
     from frappe.utils import now_datetime
     frappe.db.set_value("Applicant", applicant_id, {
-        "locked_contractor": contractor,
+        "locked_contractor": effective_contractor,
         "locked_at": now_datetime(),
         "applicant_state": "Selected"
     })
 
     # 3. Create or update Contract Request
-    existing_cr = frappe.get_all("Contract Request", filters={"applicant": applicant_id, "contractor": contractor}, pluck="name")
+    existing_cr = frappe.get_all("Contract Request", filters={"applicant": applicant_id, "contractor": effective_contractor}, pluck="name")
     if not existing_cr:
         cv_ref = frappe.db.get_value("CV Record", {"applicant": applicant_id}, "name")
         cr = frappe.get_doc({
             "doctype": "Contract Request",
             "applicant": applicant_id,
-            "contractor": contractor,
+            "contractor": effective_contractor,
             "cv_reference": cv_ref,
             "status": "Accepted",
             "created_by": frappe.session.user,
@@ -898,7 +952,7 @@ def portal_select_candidate(applicant_id, contractor):
     app_doc = frappe.get_doc("Applicant", applicant_id)
     app_doc.add_comment(
         "Comment",
-        f"<b>Candidate Selected on Agency Portal</b> by <b>{contractor}</b> (User: {frappe.session.user}). Status changed to Selected."
+        f"<b>Candidate Selected on Agency Portal</b> by <b>{effective_contractor}</b> (User: {frappe.session.user}). Status changed to Selected."
     )
 
     frappe.db.commit()
@@ -906,55 +960,58 @@ def portal_select_candidate(applicant_id, contractor):
     return {
         "status": "success",
         "applicant_id": applicant_id,
-        "contractor": contractor,
-        "message": f"Candidate successfully selected and reserved for {contractor}. Ready for contract uploading."
+        "contractor": effective_contractor,
+        "message": f"Candidate successfully selected and reserved for {effective_contractor}."
     }
 
 
-@frappe.whitelist(allow_guest=True)
-def portal_release_candidate(applicant_id, contractor):
+@frappe.whitelist()
+def portal_release_candidate(applicant_id, contractor=None):
     """
     Releases the selection lock if the agency cancels their reservation before issuing a contract.
     """
-    if not applicant_id or not contractor:
-        frappe.throw("Applicant ID and Contractor are required.")
+    if not applicant_id:
+        frappe.throw("Applicant ID is required.")
+
+    effective_contractor = _get_effective_contractor_for_session(contractor)
 
     app = frappe.get_doc("Applicant", applicant_id)
-    if app.locked_contractor != contractor:
-        frappe.throw(f"You do not hold the active lock for this candidate.")
+    if app.locked_contractor != effective_contractor:
+        frappe.throw("You do not hold the active reservation lock for this candidate.", frappe.PermissionError)
 
     app.locked_contractor = None
     app.locked_at = None
     app.save(ignore_permissions=True)
 
-    # Cancel or close any pending contract request
-    crs = frappe.get_all("Contract Request", filters={"applicant": applicant_id, "contractor": contractor}, pluck="name")
+    # Cancel or close any pending contract requests
+    crs = frappe.get_all("Contract Request", filters={"applicant": applicant_id, "contractor": effective_contractor}, pluck="name")
     for cr in crs:
         frappe.db.set_value("Contract Request", cr, "status", "Closed")
 
     from applicant_processing.applicant_processing.doctype.applicant.applicant import recalculate_applicant_state
     new_state = recalculate_applicant_state(applicant_id)
 
-    app.add_comment("Comment", f"<b>Selection Lock Released</b> by {contractor} ({frappe.session.user}).")
+    app.add_comment("Comment", f"<b>Selection Lock Released</b> by {effective_contractor} ({frappe.session.user}).")
     frappe.db.commit()
-
 
     return {"status": "success", "message": f"Candidate released back to available pool ({new_state})."}
 
 
-# =========================================================================
-# MODULE 10: OPERATIONS SUMMARY & EXECUTIVE ANALYTICS
-# =========================================================================
-
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def get_portal_stats(contractor=None):
     """
-    Returns quick stat counts for the Agency Portal hero banner:
-    - available_candidates: candidates in pool unreserved
+    Returns quick stats for the Agency Portal hero banner:
+    - available_candidates: unreserved candidates in pool
+    - my_selected_candidates: candidates reserved/processing under this agency
     - open_complaints: unresolved complaints for this contractor
-    - active_contractors: total active partner agencies
     """
-    # Available candidates (unreserved, CV Generated, Registered, or Data Complete)
+    effective_contractor = None
+    try:
+        effective_contractor = _get_effective_contractor_for_session(contractor)
+    except Exception:
+        pass
+
+    # Available candidates (unreserved)
     res = frappe.db.sql("""
         SELECT COUNT(*) as cnt FROM `tabApplicant`
         WHERE applicant_state IN ('CV Generated', 'Registered', 'Data Complete')
@@ -962,19 +1019,208 @@ def get_portal_stats(contractor=None):
     """, as_dict=True)
     available_count = res[0].cnt if res else 0
 
+    # My Selected candidates count
+    my_selected_count = 0
+    if effective_contractor:
+        my_selected_count = frappe.db.count("Applicant", {
+            "locked_contractor": effective_contractor,
+            "applicant_state": ["not in", ["Departed", "Cancelled"]]
+        })
+
     # Open complaints
     comp_filters = {"status": ["in", ["Open", "Under Investigation"]]}
-    if contractor:
-        comp_filters["contractor"] = contractor
+    if effective_contractor:
+        comp_filters["contractor"] = effective_contractor
     open_complaints = frappe.db.count("Agency Complaint", comp_filters)
-
-    # Active contractors
-    active_contractors = frappe.db.count("Contractor", {"active_status": 1})
 
     return {
         "available_candidates": available_count,
+        "my_selected_candidates": my_selected_count,
         "open_complaints": open_complaints,
-        "active_contractors": active_contractors
+        "contractor": effective_contractor
+    }
+
+
+# =========================================================================
+# FOREIGN AGENCY COMPLAINT WORKBENCH & WELFARE DESK
+# =========================================================================
+
+@frappe.whitelist()
+def get_agency_complaints(tab="unresolved", contractor=None):
+    """
+    Returns complaints for the Agency Complaints Workbench.
+    Strictly isolated to the authenticated agency's complaints.
+    - 'new': Status = Open
+    - 'unresolved': Open + Under Investigation (oldest pending at top)
+    - 'resolved': Resolved history
+    """
+    effective_contractor = _get_effective_contractor_for_session(contractor)
+
+    filters = {"contractor": effective_contractor}
+
+    if tab == "new":
+        filters["status"] = "Open"
+        order_by = "creation desc"
+    elif tab == "resolved":
+        filters["status"] = ["in", ["Resolved", "Returned / Free Replacement Required", "Escalated to MoL / Embassy", "Dismissed / Closed"]]
+        order_by = "resolved_at desc, modified desc"
+    else:  # 'unresolved' (default)
+        filters["status"] = ["in", ["Open", "Under Investigation"]]
+        order_by = "creation asc"
+
+    complaints = frappe.get_all(
+        "Agency Complaint",
+        filters=filters,
+        fields=[
+            "name", "contractor", "applicant", "full_name", "passport_number",
+            "complaint_category", "severity", "status", "complaint_details",
+            "assigned_officer", "resolution_outcome", "resolution_notes", "return_date", "creation", "resolved_at"
+        ],
+        order_by=order_by
+    )
+
+    from frappe.utils import date_diff, today, getdate
+    curr_today = getdate(today())
+
+    for c in complaints:
+        c["days_unresolved"] = max(0, date_diff(curr_today, getdate(c["creation"])))
+
+    return complaints
+
+
+@frappe.whitelist()
+def search_applicants_for_complaint(query, contractor=None):
+    """
+    Live autocomplete search for applicants to attach to a complaint.
+    Strictly restricted to workers associated with this agency (locked, dossier, or departed).
+    """
+    if not query or len(str(query).strip()) < 2:
+        return []
+
+    effective_contractor = _get_effective_contractor_for_session(contractor)
+    q = f"%{str(query).strip()}%"
+
+    results = frappe.db.sql("""
+        SELECT DISTINCT
+            app.name AS id,
+            app.full_name,
+            app.first_name,
+            app.last_name,
+            app.passport_number,
+            app.destination_country,
+            app.applicant_state
+        FROM `tabApplicant` app
+        LEFT JOIN `tabApplicant Dossier` dos ON dos.applicant = app.name
+        LEFT JOIN `tabDSR` dsr ON dsr.applicant_dossier = dos.name
+        WHERE
+            (app.locked_contractor = %(c)s OR dos.contractor_name = %(c)s OR dsr.contractor_name = %(c)s)
+            AND (
+                app.name LIKE %(q)s
+                OR app.full_name LIKE %(q)s
+                OR CONCAT(app.first_name, ' ', app.last_name) LIKE %(q)s
+                OR app.passport_number LIKE %(q)s
+            )
+        ORDER BY app.creation DESC
+        LIMIT 10
+    """, {"c": effective_contractor, "q": q}, as_dict=True)
+
+    for r in results:
+        r["full_name"] = r.get("full_name") or f"{r.get('first_name', '')} {r.get('last_name', '')}".strip() or "Candidate"
+
+    return results
+
+
+@frappe.whitelist()
+def submit_agency_complaint(applicant_search, complaint_category, complaint_details, contractor=None, severity="High", attachment=None):
+    """
+    Submits a dispute/complaint for an agency's worker.
+    Forces contractor context from user session to prevent spoofing.
+    """
+    effective_contractor = _get_effective_contractor_for_session(contractor)
+
+    if not applicant_search or not complaint_category or not complaint_details:
+        frappe.throw("Applicant, Complaint Category, and Details are required.")
+
+    # Resolve applicant search query -> valid Applicant ID
+    resolved_id = None
+    if frappe.db.exists("Applicant", applicant_search):
+        resolved_id = applicant_search
+    if not resolved_id:
+        resolved_id = frappe.db.get_value("Applicant", {"passport_number": applicant_search}, "name")
+    if not resolved_id:
+        rows = frappe.db.sql("""
+            SELECT name FROM `tabApplicant`
+            WHERE full_name LIKE %(q)s OR CONCAT(first_name, ' ', last_name) LIKE %(q)s
+            LIMIT 1
+        """, {"q": f"%{applicant_search}%"}, as_dict=True)
+        if rows:
+            resolved_id = rows[0].name
+
+    if not resolved_id:
+        frappe.throw(f"Worker '{applicant_search}' not found. Please search by Applicant ID, passport number, or full name.")
+
+    complaint = frappe.get_doc({
+        "doctype": "Agency Complaint",
+        "contractor": effective_contractor,
+        "applicant": resolved_id,
+        "complaint_category": complaint_category,
+        "severity": severity or "High",
+        "complaint_details": complaint_details,
+        "attachment_evidence": attachment,
+        "status": "Open"
+    })
+    complaint.insert(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {
+        "status": "success",
+        "complaint_id": complaint.name,
+        "applicant_resolved": resolved_id,
+        "contractor": effective_contractor,
+        "message": f"Complaint #{complaint.name} logged successfully. Assigned to Welfare Desk."
+    }
+
+
+@frappe.whitelist()
+def resolve_agency_complaint(complaint_id, outcome, resolution_notes, return_date=None, replacement_applicant=None):
+    """
+    Internal staff endpoint to resolve an agency complaint.
+    Requires System Manager, Administrator, or LMS Employee role.
+    """
+    frappe.only_for(["System Manager", "Administrator", "LMS Employee"])
+
+    if not complaint_id or not outcome or not resolution_notes:
+        frappe.throw("Complaint ID, Resolution Outcome, and Notes are required.")
+
+    OUTCOME_STATUS_MAP = {
+        "Resolved": "Resolved",
+        "Returned / Free Replacement Required": "Returned / Free Replacement Required",
+        "Escalated": "Escalated to MoL / Embassy",
+        "Dismissed": "Dismissed / Closed",
+    }
+    new_status = OUTCOME_STATUS_MAP.get(outcome, outcome)
+
+    from frappe.utils import now_datetime
+    complaint = frappe.get_doc("Agency Complaint", complaint_id)
+    complaint.resolution_outcome = outcome
+    complaint.resolution_notes = resolution_notes
+    complaint.status = new_status
+    complaint.resolved_at = now_datetime()
+
+    if return_date:
+        complaint.return_date = return_date
+    if replacement_applicant:
+        complaint.replacement_applicant = replacement_applicant
+        complaint.is_free_replacement_created = 1
+
+    complaint.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {
+        "status": "success",
+        "complaint_id": complaint_id,
+        "new_status": new_status,
+        "message": f"Complaint {complaint_id} resolved → {new_status}."
     }
 
 

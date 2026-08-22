@@ -90,6 +90,17 @@ class ApplicantDossier(Document):
 		if not applicant and self.contract_request:
 			applicant = frappe.db.get_value("Contract Request", self.contract_request, "applicant")
 		if applicant:
+			target_contractor = self.contractor_name or self.agency
+			if target_contractor:
+				app_doc = frappe.get_doc("Applicant", applicant)
+				if not app_doc.locked_contractor or app_doc.locked_contractor != target_contractor:
+					from frappe.utils import now_datetime
+					app_doc.locked_contractor = target_contractor
+					app_doc.locked_at = now_datetime()
+					if app_doc.applicant_state in ("Draft", "Registered", "CV Generated", "Data Complete"):
+						app_doc.applicant_state = "Selected"
+					app_doc.save(ignore_permissions=True)
+
 			from applicant_processing.applicant_processing.doctype.applicant.applicant import recalculate_applicant_state
 			recalculate_applicant_state(applicant)
 

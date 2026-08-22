@@ -529,12 +529,39 @@ def build_commission_pdf(summary, candidates):
 # Whitelisted API Endpoints
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _resolve_session_contractor(contractor=None):
+    """
+    Enforces multi-tenant security on commission endpoints.
+    If user has Foreign Agency role, strictly resolves contractor to their own linked Contractor doc.
+    """
+    if not frappe.session.user or frappe.session.user == "Guest":
+        frappe.throw("Authentication required. Please log in.", frappe.AuthenticationError)
+
+    user_roles = frappe.get_roles(frappe.session.user)
+    is_internal = any(r in user_roles for r in ("System Manager", "Administrator", "LMS Employee", "Accounts Manager"))
+
+    if is_internal and contractor:
+        return contractor
+
+    contractor_name = frappe.db.get_value("Contractor", {"email": frappe.session.user, "active_status": 1}, "name")
+    if not contractor_name and hasattr(frappe.db, "has_column") and frappe.db.has_column("Contractor", "user"):
+        contractor_name = frappe.db.get_value("Contractor", {"user": frappe.session.user, "active_status": 1}, "name")
+    if not contractor_name and is_internal:
+        return contractor or frappe.db.get_value("Contractor", {"active_status": 1}, "name")
+
+    if not contractor_name:
+        frappe.throw("Your user account is not linked to an active Partner Agency.", frappe.PermissionError)
+
+    return contractor_name
+
+
 @frappe.whitelist()
-def get_unpaid_commission_summary(contractor):
+def get_unpaid_commission_summary(contractor=None):
     """
-    Returns a lightweight summary (count + totals) for a partner agency
-    without returning the full candidate list. Used by the Contractor form banner.
+    Returns a lightweight summary (count + totals) for a partner agency.
+    Multi-tenant isolated for Foreign Agency users.
     """
+    contractor = _resolve_session_contractor(contractor)
     contractor_doc = _get_contractor(contractor)
     default_rate = flt(contractor_doc.default_commission_amount) or 0.0
     currency = contractor_doc.default_commission_currency or "SAR"
@@ -577,10 +604,12 @@ def get_unpaid_commission_summary(contractor):
 
 
 @frappe.whitelist()
-def get_unpaid_commission_candidates_list(contractor, limit=30, from_date=None, to_date=None):
+def get_unpaid_commission_candidates_list(contractor=None, limit=30, from_date=None, to_date=None):
     """
-    Returns the full candidate list with summary for the Agency Commission Desk page.
+    Returns the full candidate list with summary for the Agency Commission view.
+    Multi-tenant isolated for Foreign Agency users.
     """
+    contractor = _resolve_session_contractor(contractor)
     summary, candidates = get_unpaid_commission_data(
         contractor, limit=limit, from_date=from_date, to_date=to_date
     )
@@ -588,11 +617,14 @@ def get_unpaid_commission_candidates_list(contractor, limit=30, from_date=None, 
 
 
 @frappe.whitelist()
-def export_unpaid_commission_report(contractor, export_format="excel", limit=30, from_date=None, to_date=None, applicant_ids=None):
+def export_unpaid_commission_report(contractor=None, export_format="excel", limit=30, from_date=None, to_date=None, applicant_ids=None):
     """
     Streams an Excel (.xlsx) or PDF commission billing statement for download.
+    Multi-tenant isolated for Foreign Agency users.
     """
-    frappe.only_for(["System Manager", "LMS Employee", "Accounts Manager"])
+    frappe.only_for(["System Manager", "Administrator", "LMS Employee", "Accounts Manager", "Foreign Agency"])
+
+    contractor = _resolve_session_contractor(contractor)
 
     summary, candidates = get_unpaid_commission_data(
         contractor=contractor,
