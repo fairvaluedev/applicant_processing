@@ -1,0 +1,18 @@
+{
+ "creation": "2026-08-22 07:30:00.000000",
+ "doctype": "Page",
+ "modified": "2026-08-22 07:30:00.000000",
+ "modified_by": "Administrator",
+ "module": "Applicant Processing",
+ "name": "agency-commissions",
+ "owner": "Administrator",
+ "page_name": "agency-commissions",
+ "roles": [
+  {
+   "doctype": "Has Role",
+   "role": "System Manager"
+  }
+ ],
+ "standard": "Yes",
+ "title": "Agency Commission & Billing Desk"
+}

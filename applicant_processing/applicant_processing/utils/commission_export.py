@@ -20,6 +20,24 @@ def get_unpaid_commission_data(contractor, limit=30, from_date=None, to_date=Non
     default_rate = flt(getattr(contractor_doc, "default_commission_amount", 1000.0) or 1000.0)
     currency = getattr(contractor_doc, "default_commission_currency", "SAR") or "SAR"
 
+    has_comm_status = False
+    has_comm_amount = False
+    try:
+        if hasattr(frappe.db, "has_column"):
+            has_comm_status = frappe.db.has_column("Applicant", "commission_status")
+            has_comm_amount = frappe.db.has_column("Applicant", "commission_amount")
+    except Exception:
+        pass
+
+    status_condition = """(
+        app.commission_status IS NULL
+        OR app.commission_status = ''
+        OR app.commission_status = 'Unpaid'
+    )""" if has_comm_status else "1=1"
+
+    status_col = "app.commission_status," if has_comm_status else "'Unpaid' AS commission_status,"
+    amount_col = "app.commission_amount," if has_comm_amount else "NULL AS commission_amount,"
+
     conditions = [
         """(
             app.locked_contractor = %(contractor)s
@@ -31,11 +49,7 @@ def get_unpaid_commission_data(contractor, limit=30, from_date=None, to_date=Non
             OR dep.status = 'Departed'
             OR dsr.departure_status = 'Departed'
         )""",
-        """(
-            app.commission_status IS NULL
-            OR app.commission_status = ''
-            OR app.commission_status = 'Unpaid'
-        )"""
+        status_condition
     ]
     values = {"contractor": contractor}
 
@@ -79,8 +93,8 @@ def get_unpaid_commission_data(contractor, limit=30, from_date=None, to_date=Non
             app.job_applied,
             app.phone_number,
             app.applicant_state,
-            app.commission_status,
-            app.commission_amount,
+            {status_col}
+            {amount_col}
             COALESCE(dep.departure_time, dep.modified, app.modified) AS departure_date,
             dos.sponsor_name,
             dos.visa_number
@@ -671,10 +685,14 @@ def mark_commissions_as_paid(contractor, applicant_ids=None, reference=None, pay
             app = frappe.get_doc("Applicant", app_id)
             rate = flt(app.commission_amount) if app.commission_amount else default_rate
 
-            app.commission_status = "Paid"
-            app.commission_amount = rate
-            app.commission_paid_date = pay_date
-            app.commission_batch_ref = ref_str
+            if hasattr(app, "commission_status") or (hasattr(frappe.db, "has_column") and frappe.db.has_column("Applicant", "commission_status")):
+                app.commission_status = "Paid"
+            if hasattr(app, "commission_amount") or (hasattr(frappe.db, "has_column") and frappe.db.has_column("Applicant", "commission_amount")):
+                app.commission_amount = rate
+            if hasattr(app, "commission_paid_date") or (hasattr(frappe.db, "has_column") and frappe.db.has_column("Applicant", "commission_paid_date")):
+                app.commission_paid_date = pay_date
+            if hasattr(app, "commission_batch_ref") or (hasattr(frappe.db, "has_column") and frappe.db.has_column("Applicant", "commission_batch_ref")):
+                app.commission_batch_ref = ref_str
 
             # Add an accounting log entry if not already present
             existing_income = any(
