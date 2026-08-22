@@ -447,7 +447,54 @@ Aggregates candidate fees, contractor billing, operational expenses, and profit 
         "Wakala Clearances": 180000.00,
         "DSR Stamp & Visas": 150000.00
       }
+### 5.8.2 Agency Unpaid Commission Summary API
+Returns unpaid departed candidate count, preconfigured commission rate, and total outstanding balance for a partner agency.
+
+* **`GET /api/method/applicant_processing.applicant_processing.api.get_unpaid_commission_summary`**
+* **Query Parameters:** `contractor` (Contractor Name)
+* **Response (HTTP 200):**
+  ```json
+  {
+    "message": {
+      "summary": {
+        "contractor": "Al-Riyadh Manpower Co.",
+        "company_name": "Al-Riyadh Manpower Co.",
+        "country": "Saudi Arabia",
+        "contact_person": "Ahmed Al-Harbi",
+        "default_rate": 1000.0,
+        "currency": "SAR",
+        "total_count": 35,
+        "total_amount": 35000.0,
+        "generated_on": "2026-08-22",
+        "batch_label": "All (35)"
+      }
     }
+  }
+  ```
+
+### 5.8.3 Export Agency Commission Statement (Excel & PDF)
+Generates and downloads an itemized statement of departed candidates with preconfigured commission amounts in Excel (`.xlsx`) or PDF format.
+
+* **`GET /api/method/applicant_processing.applicant_processing.api.export_unpaid_commission_report`**
+* **Query Parameters:**
+  - `contractor` (Required, e.g. `"Al-Riyadh Manpower Co."`)
+  - `export_format` (`"excel"` or `"pdf"`, default: `"excel"`)
+  - `limit` (e.g. `30`, `40`, `50`, `100`, `"all"`, default: `30`)
+  - `from_date` (Optional `YYYY-MM-DD`)
+  - `to_date` (Optional `YYYY-MM-DD`)
+* **Response:** Direct binary stream download (`.xlsx` or `.pdf`).
+
+### 5.8.4 Settle / Mark Commission Batch as Paid
+Marks exported candidates as `Paid` in the ledger, logs the bank transfer reference, and creates an Income entry.
+
+* **`POST /api/method/applicant_processing.applicant_processing.api.mark_commissions_as_paid`**
+* **Request Body:**
+  ```json
+  {
+    "contractor": "Al-Riyadh Manpower Co.",
+    "limit": 30,
+    "reference": "WIRE-SA-2026-9901",
+    "payment_date": "2026-08-22"
   }
   ```
 
