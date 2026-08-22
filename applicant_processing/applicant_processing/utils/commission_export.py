@@ -5,85 +5,122 @@ import io
 import json
 import csv
 import frappe
-from frappe.utils import getdate, today, now_datetime, formatdate, flt
+from frappe.utils import getdate, today, formatdate, flt
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Internal Helpers
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _commission_columns_present():
+    """
+    Check once whether the commission columns exist in the Applicant table.
+    Returns a dict of booleans keyed by column name.
+    """
+    cols = ["commission_status", "commission_amount", "commission_paid_date", "commission_batch_ref"]
+    result = {}
+    for col in cols:
+        try:
+            result[col] = bool(frappe.db.has_column("Applicant", col))
+        except Exception:
+            result[col] = False
+    return result
+
+
+def _normalize_limit(limit):
+    """
+    Parse the limit parameter into an integer or None (meaning ALL).
+    Returns: (int | None, str label)
+    """
+    if not limit or str(limit).lower() in ("all", "0", "none", ""):
+        return None, "All"
+    try:
+        n = int(limit)
+        return (n if n > 0 else None), str(n)
+    except (ValueError, TypeError):
+        return None, "All"
+
+
+def _parse_applicant_ids(applicant_ids):
+    """Deserialize applicant_ids from JSON string, comma-list, or list."""
+    if not applicant_ids:
+        return []
+    if isinstance(applicant_ids, list):
+        return [a for a in applicant_ids if a]
+    if isinstance(applicant_ids, str):
+        try:
+            parsed = json.loads(applicant_ids)
+            if isinstance(parsed, list):
+                return [a for a in parsed if a]
+        except (json.JSONDecodeError, ValueError):
+            pass
+        return [a.strip() for a in applicant_ids.split(",") if a.strip()]
+    return []
+
+
+def _get_contractor(contractor):
+    """Fetch the Contractor doc with a clean error on miss."""
+    if not contractor:
+        frappe.throw(frappe._("Contractor is required."))
+    if not frappe.db.exists("Contractor", contractor):
+        frappe.throw(frappe._("Partner agency '{0}' was not found.").format(contractor), frappe.DoesNotExistError)
+    return frappe.get_doc("Contractor", contractor)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Core Data Fetch
+# ─────────────────────────────────────────────────────────────────────────────
 
 def get_unpaid_commission_data(contractor, limit=30, from_date=None, to_date=None, applicant_ids=None):
     """
     Fetches departed applicants for a specific foreign recruitment agency whose
-    commission has not been marked as Paid.
+    commission has not been settled.
+
+    Returns: (summary dict, list of candidate dicts)
     """
-    if not contractor or not frappe.db.exists("Contractor", contractor):
-        frappe.throw(f"Contractor / Agency '{contractor}' not found.", frappe.DoesNotExistError)
+    contractor_doc = _get_contractor(contractor)
+    default_rate = flt(contractor_doc.default_commission_amount) or 0.0
+    currency = contractor_doc.default_commission_currency or "SAR"
 
-    contractor_doc = frappe.get_doc("Contractor", contractor)
-    default_rate = flt(getattr(contractor_doc, "default_commission_amount", 1000.0) or 1000.0)
-    currency = getattr(contractor_doc, "default_commission_currency", "SAR") or "SAR"
+    cols = _commission_columns_present()
+    has_status = cols["commission_status"]
+    has_amount = cols["commission_amount"]
 
-    has_comm_status = False
-    has_comm_amount = False
-    try:
-        if hasattr(frappe.db, "has_column"):
-            has_comm_status = frappe.db.has_column("Applicant", "commission_status")
-            has_comm_amount = frappe.db.has_column("Applicant", "commission_amount")
-    except Exception:
-        pass
+    # Build SQL fragments that gracefully degrade if columns don't exist yet
+    status_select = "app.commission_status" if has_status else "'Unpaid'"
+    amount_select = "app.commission_amount" if has_amount else "NULL"
 
-    status_condition = """(
-        app.commission_status IS NULL
-        OR app.commission_status = ''
-        OR app.commission_status = 'Unpaid'
-    )""" if has_comm_status else "1=1"
-
-    status_col = "app.commission_status," if has_comm_status else "'Unpaid' AS commission_status,"
-    amount_col = "app.commission_amount," if has_comm_amount else "NULL AS commission_amount,"
+    status_filter = (
+        "(app.commission_status IS NULL OR app.commission_status = '' OR app.commission_status = 'Unpaid')"
+        if has_status else "1=1"
+    )
 
     conditions = [
-        """(
-            app.locked_contractor = %(contractor)s
-            OR dos.contractor_name = %(contractor)s
-            OR dsr.contractor_name = %(contractor)s
-        )""",
-        """(
-            app.applicant_state = 'Departed'
-            OR dep.status = 'Departed'
-            OR dsr.departure_status = 'Departed'
-        )""",
-        status_condition
+        "(app.locked_contractor = %(contractor)s OR dos.contractor_name = %(contractor)s OR dsr.contractor_name = %(contractor)s)",
+        "(app.applicant_state = 'Departed' OR dep.status = 'Departed' OR dsr.departure_status = 'Departed')",
+        status_filter,
     ]
-    values = {"contractor": contractor}
+    params = {"contractor": contractor}
 
-    if applicant_ids:
-        if isinstance(applicant_ids, str):
-            try:
-                applicant_ids = json.loads(applicant_ids)
-            except Exception:
-                applicant_ids = [a.strip() for a in applicant_ids.split(",") if a.strip()]
-        if applicant_ids:
-            conditions.append("app.name IN %(applicant_ids)s")
-            values["applicant_ids"] = tuple(applicant_ids)
+    ids = _parse_applicant_ids(applicant_ids)
+    if ids:
+        conditions.append("app.name IN %(applicant_ids)s")
+        params["applicant_ids"] = tuple(ids)
 
     if from_date:
         conditions.append("DATE(COALESCE(dep.departure_time, dep.modified, app.modified)) >= %(from_date)s")
-        values["from_date"] = str(getdate(from_date))
+        params["from_date"] = str(getdate(from_date))
 
     if to_date:
         conditions.append("DATE(COALESCE(dep.departure_time, dep.modified, app.modified)) <= %(to_date)s")
-        values["to_date"] = str(getdate(to_date))
+        params["to_date"] = str(getdate(to_date))
 
-    where_clause = " AND ".join(conditions)
-
-    limit_clause = ""
-    if limit and str(limit).lower() not in ("all", "0", "none"):
-        try:
-            limit_int = int(limit)
-            if limit_int > 0:
-                limit_clause = f"LIMIT {limit_int}"
-        except Exception:
-            pass
+    where = " AND ".join(conditions)
+    limit_int, limit_label = _normalize_limit(limit)
+    limit_clause = f"LIMIT {limit_int}" if limit_int else ""
 
     sql = f"""
-        SELECT DISTINCT
+        SELECT
             app.name,
             app.full_name,
             app.first_name,
@@ -93,75 +130,93 @@ def get_unpaid_commission_data(contractor, limit=30, from_date=None, to_date=Non
             app.job_applied,
             app.phone_number,
             app.applicant_state,
-            {status_col}
-            {amount_col}
+            {status_select} AS commission_status,
+            {amount_select} AS commission_amount,
             COALESCE(dep.departure_time, dep.modified, app.modified) AS departure_date,
+            dos.name AS dossier,
             dos.sponsor_name,
             dos.visa_number
         FROM `tabApplicant` app
         LEFT JOIN `tabApplicant Dossier` dos ON dos.applicant = app.name
         LEFT JOIN `tabDSR` dsr ON dsr.applicant_dossier = dos.name
         LEFT JOIN `tabDSR Departure` dep ON dep.dsr = dsr.name
-        WHERE {where_clause}
+        WHERE {where}
+        GROUP BY app.name
         ORDER BY departure_date DESC, app.creation DESC
         {limit_clause}
     """
 
-    raw_candidates = frappe.db.sql(sql, values, as_dict=True)
+    rows = frappe.db.sql(sql, params, as_dict=True)
 
     candidates = []
     total_amount = 0.0
 
-    for idx, c in enumerate(raw_candidates, 1):
-        rate = flt(c.get("commission_amount")) if c.get("commission_amount") else default_rate
+    for idx, row in enumerate(rows, 1):
+        rate = flt(row.get("commission_amount")) or default_rate
         total_amount += rate
 
-        dep_dt = c.get("departure_date")
+        dep_dt = row.get("departure_date")
         dep_str = ""
         if dep_dt:
             try:
-                dep_str = formatdate(dep_dt, "yyyy-mm-dd")
+                dep_str = formatdate(dep_dt, "dd-MMM-yyyy")
             except Exception:
                 dep_str = str(dep_dt)[:10]
 
+        full_name = (
+            row.get("full_name")
+            or f"{row.get('first_name', '')} {row.get('last_name', '')}".strip()
+            or "—"
+        )
+
         candidates.append({
             "idx": idx,
-            "name": c.get("name"),
-            "full_name": c.get("full_name") or f"{c.get('first_name', '')} {c.get('last_name', '')}".strip() or "Candidate",
-            "passport_number": c.get("passport_number") or "-",
-            "destination_country": c.get("destination_country") or contractor_doc.country or "Saudi Arabia",
-            "job_applied": c.get("job_applied") or "General Domestic Worker",
-            "phone_number": c.get("phone_number") or "-",
-            "sponsor_name": c.get("sponsor_name") or "-",
-            "visa_number": c.get("visa_number") or "-",
+            "name": row.get("name"),
+            "full_name": full_name,
+            "passport_number": row.get("passport_number") or "—",
+            "destination_country": row.get("destination_country") or contractor_doc.country or "—",
+            "job_applied": row.get("job_applied") or "—",
+            "phone_number": row.get("phone_number") or "—",
+            "sponsor_name": row.get("sponsor_name") or "—",
+            "visa_number": row.get("visa_number") or "—",
             "departure_date": dep_str,
             "commission_rate": rate,
             "commission_currency": currency,
-            "commission_status": "Unpaid"
+            "commission_status": "Unpaid",
         })
+
+    batch_label = (
+        f"Last {len(candidates)} of {limit_label}"
+        if limit_int and len(candidates) == limit_int
+        else f"All ({len(candidates)})"
+    )
 
     summary = {
         "contractor": contractor,
         "company_name": contractor_doc.company_name,
-        "country": contractor_doc.country,
-        "contact_person": contractor_doc.contact_person or "-",
-        "phone": contractor_doc.phone or contractor_doc.whatsapp or "-",
-        "email": contractor_doc.email or "-",
+        "country": contractor_doc.country or "—",
+        "contact_person": contractor_doc.contact_person or "—",
+        "phone": contractor_doc.phone or contractor_doc.whatsapp or "—",
+        "email": contractor_doc.email or "—",
         "default_rate": default_rate,
         "currency": currency,
         "total_count": len(candidates),
         "total_amount": total_amount,
-        "generated_on": formatdate(today(), "yyyy-mm-dd"),
-        "batch_label": f"Last {len(candidates)}" if limit and str(limit).lower() != "all" else f"All ({len(candidates)})"
+        "generated_on": formatdate(today(), "dd-MMM-yyyy"),
+        "batch_label": batch_label,
     }
 
     return summary, candidates
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Excel Builder
+# ─────────────────────────────────────────────────────────────────────────────
+
 def build_commission_excel(summary, candidates):
     """
-    Generates a professionally styled Excel workbook (.xlsx) using openpyxl,
-    with fallback to UTF-8 CSV if openpyxl is not installed.
+    Generates a styled Excel workbook (.xlsx) using openpyxl.
+    Falls back to UTF-8 CSV if openpyxl is not available.
     """
     try:
         import openpyxl
@@ -170,481 +225,398 @@ def build_commission_excel(summary, candidates):
 
         wb = openpyxl.Workbook()
         ws = wb.active
-        ws.title = "Unpaid Commission Statement"
-        ws.views.sheetView[0].showGridLines = True
+        ws.title = "Commission Statement"
 
-        # Palettes
-        NAVY_FILL = PatternFill(start_color="1E293B", end_color="1E293B", fill_type="solid")
-        LIGHT_FILL = PatternFill(start_color="F8FAFC", end_color="F8FAFC", fill_type="solid")
-        ALT_FILL = PatternFill(start_color="F1F5F9", end_color="F1F5F9", fill_type="solid")
-        HEADER_FILL = PatternFill(start_color="0F766E", end_color="0F766E", fill_type="solid")
-        ACCENT_FILL = PatternFill(start_color="E0F2FE", end_color="E0F2FE", fill_type="solid")
+        # ── Colour tokens ────────────────────────────────────────────────────
+        C_NAVY   = "1E293B"
+        C_TEAL   = "0F766E"
+        C_ACCENT = "EFF6FF"
+        C_ALT    = "F1F5F9"
+        C_WHITE  = "FFFFFF"
+        C_TOTAL  = "ECFDF5"
 
-        FONT_TITLE = Font(name="Calibri", size=16, bold=True, color="FFFFFF")
-        FONT_HEADER = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
-        FONT_BOLD = Font(name="Calibri", size=11, bold=True, color="0F172A")
-        FONT_REGULAR = Font(name="Calibri", size=10, color="1E293B")
-        FONT_MUTED = Font(name="Calibri", size=10, color="64748B")
-        FONT_TOTAL = Font(name="Calibri", size=12, bold=True, color="0F766E")
+        def fill(hex_color):
+            return PatternFill(start_color=hex_color, end_color=hex_color, fill_type="solid")
 
-        THIN_BORDER = Border(
-            left=Side(style="thin", color="CBD5E1"),
-            right=Side(style="thin", color="CBD5E1"),
-            top=Side(style="thin", color="CBD5E1"),
-            bottom=Side(style="thin", color="CBD5E1")
-        )
+        def border(color="CBD5E1"):
+            s = Side(style="thin", color=color)
+            return Border(left=s, right=s, top=s, bottom=s)
 
-        # Row 1-2: Header Banner
+        def font(bold=False, color="0F172A", size=10, name="Calibri"):
+            return Font(name=name, size=size, bold=bold, color=color)
+
+        def align(h="left", v="center", wrap=False):
+            return Alignment(horizontal=h, vertical=v, wrap_text=wrap)
+
+        # ── Title row (merged A1:K2) ─────────────────────────────────────────
         ws.merge_cells("A1:K2")
-        title_cell = ws["A1"]
-        title_cell.value = f"AGENCY COMMISSION BILLING STATEMENT — {summary['company_name'].upper()}"
-        title_cell.font = FONT_TITLE
-        title_cell.fill = NAVY_FILL
-        title_cell.alignment = Alignment(horizontal="center", vertical="center")
+        ws.row_dimensions[1].height = 22
+        ws.row_dimensions[2].height = 22
+        t = ws["A1"]
+        t.value = f"COMMISSION BILLING STATEMENT  —  {summary['company_name'].upper()}"
+        t.font = Font(name="Calibri", size=14, bold=True, color=C_WHITE)
+        t.fill = fill(C_NAVY)
+        t.alignment = align("center")
 
-        # Rows 4-6: Agency Metadata Card
-        ws["A4"] = "Partner Agency:"
-        ws["B4"] = summary["company_name"]
-        ws["D4"] = "Corridor / Country:"
-        ws["E4"] = summary["country"]
-        ws["G4"] = "Statement Date:"
-        ws["H4"] = summary["generated_on"]
-
-        ws["A5"] = "Contact Person:"
-        ws["B5"] = summary["contact_person"]
-        ws["D5"] = "Contact Phone:"
-        ws["E5"] = summary["phone"]
-        ws["G5"] = "Batch Scope:"
-        ws["H5"] = summary["batch_label"]
-
-        ws["A6"] = "Default Rate / Candidate:"
-        ws["B6"] = f"{summary['default_rate']:,.2f} {summary['currency']}"
-        ws["D6"] = "Unpaid Candidates:"
-        ws["E6"] = summary["total_count"]
-        ws["G6"] = "Total Outstanding:"
-        ws["H6"] = f"{summary['total_amount']:,.2f} {summary['currency']}"
-
-        for r in range(4, 7):
-            for c in ["A", "D", "G"]:
-                ws[f"{c}{r}"].font = FONT_BOLD
-                ws[f"{c}{r}"].fill = ACCENT_FILL
-            for c in ["B", "E", "H"]:
-                ws[f"{c}{r}"].font = FONT_REGULAR
-
-        # Row 8: Table Header
-        headers = [
-            "Item #", "Applicant ID", "Candidate Name", "Passport No",
-            "Destination", "Job Position", "Departure Date",
-            "Employer / Sponsor", "Visa Number", "Commission Amount", "Payment Status"
+        # ── Metadata rows (4–6) ──────────────────────────────────────────────
+        meta = [
+            ("A4", "Partner Agency:",       "B4", summary["company_name"]),
+            ("D4", "Operating Country:",    "E4", summary["country"]),
+            ("G4", "Statement Date:",       "H4", summary["generated_on"]),
+            ("A5", "Contact Person:",       "B5", summary["contact_person"]),
+            ("D5", "Phone / WhatsApp:",     "E5", summary["phone"]),
+            ("G5", "Scope:",                "H5", summary["batch_label"]),
+            ("A6", "Rate / Candidate:",     "B6", f"{summary['default_rate']:,.2f} {summary['currency']}"),
+            ("D6", "Unpaid Candidates:",    "E6", summary["total_count"]),
+            ("G6", "Total Outstanding:",    "H6", f"{summary['total_amount']:,.2f} {summary['currency']}"),
         ]
+        for label_cell, label_val, val_cell, val_val in meta:
+            ws[label_cell].value = label_val
+            ws[label_cell].font = font(bold=True, color=C_TEAL)
+            ws[label_cell].fill = fill(C_ACCENT)
+            ws[val_cell].value = val_val
+            ws[val_cell].font = font()
 
-        start_row = 8
-        for col_num, h_text in enumerate(headers, 1):
-            cell = ws.cell(row=start_row, column=col_num)
-            cell.value = h_text
-            cell.font = FONT_HEADER
-            cell.fill = HEADER_FILL
-            cell.alignment = Alignment(horizontal="center", vertical="center")
-            cell.border = THIN_BORDER
+        # ── Column headers (row 8) ────────────────────────────────────────────
+        headers = [
+            "#", "Applicant ID", "Full Name", "Passport No",
+            "Destination", "Job Position", "Departure Date",
+            "Sponsor / Employer", "Visa No", f"Commission ({summary['currency']})", "Status"
+        ]
+        COL_WIDTHS = [6, 14, 22, 14, 14, 18, 14, 22, 14, 18, 12]
+        for i, (h, w) in enumerate(zip(headers, COL_WIDTHS), 1):
+            c = ws.cell(row=8, column=i, value=h)
+            c.font = Font(name="Calibri", size=10, bold=True, color=C_WHITE)
+            c.fill = fill(C_TEAL)
+            c.alignment = align("center")
+            c.border = border()
+            ws.column_dimensions[get_column_letter(i)].width = w
 
-        # Data Rows
-        cur_row = start_row + 1
-        for cand in candidates:
-            fill_style = ALT_FILL if cur_row % 2 == 0 else LIGHT_FILL
+        ws.row_dimensions[8].height = 18
+
+        # ── Data rows (row 9+) ────────────────────────────────────────────────
+        for row_num, cand in enumerate(candidates, 9):
+            row_fill = fill(C_ALT) if row_num % 2 == 0 else fill(C_WHITE)
             row_vals = [
-                cand["idx"],
-                cand["name"],
-                cand["full_name"],
-                cand["passport_number"],
-                cand["destination_country"],
-                cand["job_applied"],
-                cand["departure_date"],
-                cand["sponsor_name"],
-                cand["visa_number"],
-                cand["commission_rate"],
-                cand["commission_status"]
+                cand["idx"], cand["name"], cand["full_name"], cand["passport_number"],
+                cand["destination_country"], cand["job_applied"], cand["departure_date"],
+                cand["sponsor_name"], cand["visa_number"], cand["commission_rate"], cand["commission_status"]
             ]
+            for col_num, val in enumerate(row_vals, 1):
+                c = ws.cell(row=row_num, column=col_num, value=val)
+                c.font = font()
+                c.fill = row_fill
+                c.border = border()
+                if col_num in (1, 4, 7, 11):
+                    c.alignment = align("center")
+                elif col_num == 10:
+                    c.alignment = align("right")
+                    c.number_format = "#,##0.00"
+                else:
+                    c.alignment = align("left")
 
-            for col_idx, val in enumerate(row_vals, 1):
-                c_cell = ws.cell(row=cur_row, column=col_idx)
-                c_cell.value = val
-                c_cell.font = FONT_REGULAR
-                c_cell.fill = fill_style
-                c_cell.border = THIN_BORDER
+        # ── Total footer row ─────────────────────────────────────────────────
+        total_row = 9 + len(candidates)
+        ws.merge_cells(
+            start_row=total_row, start_column=1,
+            end_row=total_row, end_column=9
+        )
+        lbl = ws.cell(row=total_row, column=1)
+        lbl.value = f"TOTAL COMMISSION PAYABLE  ({summary['total_count']} candidates)"
+        lbl.font = Font(name="Calibri", size=11, bold=True, color=C_TEAL)
+        lbl.fill = fill(C_TOTAL)
+        lbl.alignment = align("right")
 
-                if col_idx in (1, 2, 4, 7, 9, 11):
-                    c_cell.alignment = Alignment(horizontal="center")
-                elif col_idx == 10:
-                    c_cell.alignment = Alignment(horizontal="right")
-                    c_cell.number_format = "#,##0.00"
+        amt = ws.cell(row=total_row, column=10)
+        amt.value = summary["total_amount"]
+        amt.font = Font(name="Calibri", size=12, bold=True, color=C_TEAL)
+        amt.fill = fill(C_TOTAL)
+        amt.alignment = align("right")
+        amt.number_format = f'#,##0.00 "{summary["currency"]}"'
 
-            cur_row += 1
+        st = ws.cell(row=total_row, column=11)
+        st.value = "UNPAID"
+        st.font = Font(name="Calibri", size=10, bold=True, color="B91C1C")
+        st.fill = fill(C_TOTAL)
+        st.alignment = align("center")
 
-        # Total Row
-        total_row = cur_row
-        ws.merge_cells(start_row=total_row, start_column=1, end_row=total_row, end_column=9)
-        t_label = ws.cell(row=total_row, column=1)
-        t_label.value = f"TOTAL OUTSTANDING COMMISSION PAYABLE ({summary['total_count']} CANDIDATES):"
-        t_label.font = FONT_BOLD
-        t_label.fill = ACCENT_FILL
-        t_label.alignment = Alignment(horizontal="right", vertical="center")
+        for col in range(1, 12):
+            ws.cell(row=total_row, column=col).border = border()
 
-        t_val = ws.cell(row=total_row, column=10)
-        t_val.value = summary["total_amount"]
-        t_val.font = FONT_TOTAL
-        t_val.fill = ACCENT_FILL
-        t_val.alignment = Alignment(horizontal="right", vertical="center")
-        t_val.number_format = f"#,##0.00 \"{summary['currency']}\""
-
-        t_stat = ws.cell(row=total_row, column=11)
-        t_stat.value = "UNPAID"
-        t_stat.font = FONT_BOLD
-        t_stat.fill = ACCENT_FILL
-        t_stat.alignment = Alignment(horizontal="center", vertical="center")
-
-        for col_idx in range(1, 12):
-            ws.cell(row=total_row, column=col_idx).border = THIN_BORDER
-
-        # Auto-fit Column Widths
-        for col in ws.columns:
-            max_len = 0
-            col_letter = get_column_letter(col[0].column)
-            for cell in col:
-                if cell.row in (1, 2):  # skip header banner
-                    continue
-                v_str = str(cell.value or "")
-                max_len = max(max_len, len(v_str))
-            ws.column_dimensions[col_letter].width = max(max_len + 4, 12)
+        # ── Freeze pane & sheet settings ─────────────────────────────────────
+        ws.freeze_panes = "A9"
+        ws.auto_filter.ref = f"A8:K{total_row - 1}"
 
         buf = io.BytesIO()
         wb.save(buf)
         buf.seek(0)
         return buf.getvalue(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "xlsx"
 
-    except Exception:
-        # Robust CSV Fallback
-        buf = io.StringIO()
-        writer = csv.writer(buf)
-        writer.writerow([f"AGENCY COMMISSION BILLING STATEMENT - {summary['company_name']}"])
-        writer.writerow(["Statement Date", summary["generated_on"], "Country", summary["country"]])
-        writer.writerow(["Default Rate", f"{summary['default_rate']} {summary['currency']}", "Total Candidates", summary["total_count"], "Total Amount", f"{summary['total_amount']} {summary['currency']}"])
-        writer.writerow([])
-        writer.writerow(["Item #", "Applicant ID", "Candidate Name", "Passport No", "Destination", "Position", "Departure Date", "Sponsor", "Visa No", f"Commission ({summary['currency']})", "Status"])
+    except Exception as exc:
+        frappe.log_error(title="Commission Excel build failed; falling back to CSV", message=str(exc))
 
-        for cand in candidates:
-            writer.writerow([
-                cand["idx"], cand["name"], cand["full_name"], cand["passport_number"],
-                cand["destination_country"], cand["job_applied"], cand["departure_date"],
-                cand["sponsor_name"], cand["visa_number"], cand["commission_rate"], cand["commission_status"]
-            ])
+    # ── CSV fallback ─────────────────────────────────────────────────────────
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow([f"COMMISSION BILLING STATEMENT — {summary['company_name']}"])
+    w.writerow(["Date", summary["generated_on"], "Country", summary["country"],
+                "Rate", f"{summary['default_rate']} {summary['currency']}"])
+    w.writerow([])
+    w.writerow(["#", "Applicant ID", "Full Name", "Passport No", "Destination",
+                "Job", "Departure", "Sponsor", "Visa No",
+                f"Commission ({summary['currency']})", "Status"])
+    for c in candidates:
+        w.writerow([c["idx"], c["name"], c["full_name"], c["passport_number"],
+                    c["destination_country"], c["job_applied"], c["departure_date"],
+                    c["sponsor_name"], c["visa_number"], c["commission_rate"], c["commission_status"]])
+    w.writerow([])
+    w.writerow(["TOTAL", "", "", "", "", "", "", "", "", summary["total_amount"], "UNPAID"])
+    return buf.getvalue().encode("utf-8-sig"), "text/csv", "csv"
 
-        writer.writerow([])
-        writer.writerow(["TOTAL", "", "", "", "", "", "", "", "", summary["total_amount"], "UNPAID"])
 
-        return buf.getvalue().encode("utf-8-sig"), "text/csv", "csv"
-
+# ─────────────────────────────────────────────────────────────────────────────
+# PDF Builder
+# ─────────────────────────────────────────────────────────────────────────────
 
 def build_commission_pdf(summary, candidates):
     """
-    Renders an executive PDF Billing Statement with company header, candidate table,
-    currency calculation, and payment authorization block.
+    Renders an A4 PDF billing statement via wkhtmltopdf.
     """
     from frappe.utils.pdf import get_pdf
 
-    html = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="utf-8">
-        <style>
-            @page {{
-                size: A4 portrait;
-                margin: 12mm 15mm 15mm 15mm;
-            }}
-            body {{
-                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-                font-size: 11px;
-                color: #0f172a;
-                line-height: 1.4;
-                margin: 0;
-            }}
-            .header-table {{
-                width: 100%;
-                border-collapse: collapse;
-                margin-bottom: 18px;
-                border-bottom: 2px solid #0f766e;
-                padding-bottom: 12px;
-            }}
-            .brand-title {{
-                font-size: 18px;
-                font-weight: 800;
-                color: #0f766e;
-                letter-spacing: -0.02em;
-                margin: 0 0 4px 0;
-            }}
-            .brand-subtitle {{
-                font-size: 11px;
-                color: #64748b;
-                margin: 0;
-            }}
-            .statement-badge {{
-                background: #0f766e;
-                color: #ffffff;
-                padding: 6px 12px;
-                border-radius: 6px;
-                font-size: 12px;
-                font-weight: 700;
-                text-align: right;
-                display: inline-block;
-            }}
-            .kpi-container {{
-                display: table;
-                width: 100%;
-                margin-bottom: 18px;
-                border: 1px solid #e2e8f0;
-                border-radius: 8px;
-                background: #f8fafc;
-            }}
-            .kpi-col {{
-                display: table-cell;
-                padding: 10px 14px;
-                border-right: 1px solid #e2e8f0;
-                vertical-align: top;
-            }}
-            .kpi-col:last-child {{
-                border-right: none;
-                background: #f0fdf4;
-            }}
-            .kpi-label {{
-                font-size: 9px;
-                font-weight: 700;
-                text-transform: uppercase;
-                letter-spacing: 0.05em;
-                color: #64748b;
-                margin-bottom: 3px;
-            }}
-            .kpi-val {{
-                font-size: 13px;
-                font-weight: 800;
-                color: #0f172a;
-            }}
-            .kpi-total-val {{
-                font-size: 15px;
-                font-weight: 800;
-                color: #047857;
-            }}
-            table.data-table {{
-                width: 100%;
-                border-collapse: collapse;
-                margin-bottom: 16px;
-            }}
-            table.data-table th {{
-                background: #1e293b;
-                color: #ffffff;
-                font-size: 9px;
-                font-weight: 700;
-                text-transform: uppercase;
-                letter-spacing: 0.04em;
-                padding: 7px 6px;
-                border: 1px solid #1e293b;
-                text-align: left;
-            }}
-            table.data-table td {{
-                padding: 6px 6px;
-                font-size: 10px;
-                border: 1px solid #e2e8f0;
-            }}
-            table.data-table tr:nth-child(even) {{
-                background: #f8fafc;
-            }}
-            .text-center {{ text-align: center; }}
-            .text-right {{ text-align: right; }}
-            .font-bold {{ font-weight: 700; }}
-            .badge-unpaid {{
-                background: #fef2f2;
-                color: #b91c1c;
-                padding: 2px 6px;
-                border-radius: 4px;
-                font-weight: 700;
-                font-size: 9px;
-                display: inline-block;
-            }}
-            .total-box {{
-                background: #f0fdf4;
-                border: 1px solid #86efac;
-                padding: 10px 14px;
-                border-radius: 6px;
-                margin-bottom: 20px;
-                display: flex;
-                justify-content: space-between;
-            }}
-            .footer-sign {{
-                margin-top: 30px;
-                width: 100%;
-                display: table;
-            }}
-            .sign-box {{
-                display: table-cell;
-                width: 48%;
-                border-top: 1px solid #94a3b8;
-                padding-top: 6px;
-                font-size: 10px;
-                color: #475569;
-            }}
-        </style>
-    </head>
-    <body>
-        <table class="header-table">
-            <tr>
-                <td style="vertical-align: middle;">
-                    <div class="brand-title">AGENCY RECRUITMENT COMMISSION STATEMENT</div>
-                    <div class="brand-subtitle">Automated Deployment & Commission Billing Engine</div>
-                </td>
-                <td style="text-align: right; vertical-align: middle;">
-                    <div class="statement-badge">INVOICE STATEMENT</div>
-                    <div style="font-size: 10px; color: #64748b; margin-top: 4px;">Date: {summary['generated_on']}</div>
-                </td>
-            </tr>
-        </table>
+    rows_html = "".join(
+        f"""<tr>
+            <td class="tc b">{c['idx']}</td>
+            <td class="b">{frappe.utils.escape_html(c['name'])}</td>
+            <td>{frappe.utils.escape_html(c['full_name'])}</td>
+            <td class="mono">{frappe.utils.escape_html(c['passport_number'])}</td>
+            <td>{frappe.utils.escape_html(c['job_applied'])}</td>
+            <td class="tc">{frappe.utils.escape_html(c['departure_date'])}</td>
+            <td>{frappe.utils.escape_html(c['sponsor_name'])}</td>
+            <td class="tr b">{c['commission_rate']:,.2f} {frappe.utils.escape_html(c['commission_currency'])}</td>
+        </tr>"""
+        for c in candidates
+    )
 
-        <div class="kpi-container">
-            <div class="kpi-col" style="width: 32%;">
-                <div class="kpi-label">Partner Agency (Debtor)</div>
-                <div class="kpi-val">{summary['company_name']}</div>
-                <div style="font-size: 9px; color: #64748b;">{summary['country']} | Attn: {summary['contact_person']}</div>
-            </div>
-            <div class="kpi-col" style="width: 22%;">
-                <div class="kpi-label">Rate / Candidate</div>
-                <div class="kpi-val">{summary['default_rate']:,.2f} {summary['currency']}</div>
-                <div style="font-size: 9px; color: #64748b;">Batch: {summary['batch_label']}</div>
-            </div>
-            <div class="kpi-col" style="width: 20%;">
-                <div class="kpi-label">Departed Workers</div>
-                <div class="kpi-val">{summary['total_count']} Candidates</div>
-                <div style="font-size: 9px; color: #b91c1c; font-weight: 700;">Payment: UNPAID</div>
-            </div>
-            <div class="kpi-col" style="width: 26%;">
-                <div class="kpi-label">Total Commission Payable</div>
-                <div class="kpi-total-val">{summary['total_amount']:,.2f} {summary['currency']}</div>
-                <div style="font-size: 9px; color: #047857;">Due upon statement receipt</div>
-            </div>
-        </div>
+    html = f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @page {{ size: A4; margin: 14mm 16mm 16mm 16mm; }}
+  * {{ box-sizing: border-box; }}
+  body {{ font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 10px; color: #0f172a; margin: 0; }}
+  .page-header {{ border-bottom: 2px solid #0f766e; padding-bottom: 10px; margin-bottom: 14px; overflow: hidden; }}
+  .page-header .left {{ float: left; }}
+  .page-header .right {{ float: right; text-align: right; }}
+  .doc-title {{ font-size: 16px; font-weight: 800; color: #0f766e; letter-spacing: -0.02em; margin: 0 0 2px; }}
+  .doc-sub {{ font-size: 10px; color: #64748b; margin: 0; }}
+  .badge-inv {{ background: #0f766e; color: #fff; padding: 5px 11px; border-radius: 5px; font-size: 11px; font-weight: 700; display: inline-block; }}
+  .meta-grid {{ display: table; width: 100%; border: 1px solid #e2e8f0; border-radius: 6px; margin-bottom: 14px; background: #f8fafc; }}
+  .meta-col {{ display: table-cell; padding: 9px 13px; border-right: 1px solid #e2e8f0; vertical-align: top; width: 25%; }}
+  .meta-col:last-child {{ border-right: none; background: #ecfdf5; }}
+  .meta-label {{ font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #64748b; margin-bottom: 3px; }}
+  .meta-val {{ font-size: 12px; font-weight: 800; color: #0f172a; }}
+  .meta-sub {{ font-size: 8px; color: #64748b; margin-top: 1px; }}
+  .meta-total-val {{ font-size: 14px; font-weight: 800; color: #047857; }}
+  table.dt {{ width: 100%; border-collapse: collapse; margin-bottom: 12px; }}
+  table.dt thead tr {{ background: #1e293b; color: #fff; }}
+  table.dt thead th {{ font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 6px 5px; text-align: left; border: 1px solid #1e293b; }}
+  table.dt tbody tr:nth-child(even) {{ background: #f8fafc; }}
+  table.dt td {{ padding: 5px 5px; font-size: 9.5px; border: 1px solid #e2e8f0; }}
+  table.dt tfoot td {{ background: #ecfdf5; font-weight: 800; font-size: 10px; padding: 7px 5px; border: 1px solid #86efac; color: #047857; }}
+  .tc {{ text-align: center; }}
+  .tr {{ text-align: right; }}
+  .b {{ font-weight: 700; }}
+  .mono {{ font-family: "Courier New", monospace; font-size: 9px; }}
+  .notice {{ font-size: 8.5px; color: #64748b; line-height: 1.5; border-top: 1px dashed #cbd5e1; padding-top: 8px; margin-top: 8px; }}
+  .sig-table {{ display: table; width: 100%; margin-top: 28px; }}
+  .sig-cell {{ display: table-cell; width: 48%; border-top: 1px solid #94a3b8; padding-top: 5px; font-size: 9px; color: #475569; }}
+</style>
+</head>
+<body>
 
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th style="width: 5%;" class="text-center">#</th>
-                    <th style="width: 14%;">Candidate ID</th>
-                    <th style="width: 20%;">Full Name</th>
-                    <th style="width: 12%;">Passport No</th>
-                    <th style="width: 12%;">Job Position</th>
-                    <th style="width: 11%;" class="text-center">Departed</th>
-                    <th style="width: 14%;">Sponsor / Visa</th>
-                    <th style="width: 12%;" class="text-right">Commission</th>
-                </tr>
-            </thead>
-            <tbody>
-    """
+<div class="page-header">
+  <div class="left">
+    <p class="doc-title">RECRUITMENT COMMISSION STATEMENT</p>
+    <p class="doc-sub">Automated Billing &amp; Settlement Engine</p>
+  </div>
+  <div class="right">
+    <div class="badge-inv">BILLING STATEMENT</div>
+    <div style="font-size:9px;color:#64748b;margin-top:3px;">Date: {summary['generated_on']}</div>
+  </div>
+</div>
 
-    for cand in candidates:
-        html += f"""
-                <tr>
-                    <td class="text-center font-bold">{cand['idx']}</td>
-                    <td class="font-bold">{cand['name']}</td>
-                    <td>{cand['full_name']}</td>
-                    <td>{cand['passport_number']}</td>
-                    <td>{cand['job_applied']}</td>
-                    <td class="text-center">{cand['departure_date']}</td>
-                    <td>{cand['sponsor_name']}</td>
-                    <td class="text-right font-bold">{cand['commission_rate']:,.2f} {cand['commission_currency']}</td>
-                </tr>
-        """
+<div class="meta-grid">
+  <div class="meta-col">
+    <div class="meta-label">Partner Agency</div>
+    <div class="meta-val">{frappe.utils.escape_html(summary['company_name'])}</div>
+    <div class="meta-sub">{frappe.utils.escape_html(summary['country'])} &nbsp;|&nbsp; {frappe.utils.escape_html(summary['contact_person'])}</div>
+  </div>
+  <div class="meta-col">
+    <div class="meta-label">Rate / Candidate</div>
+    <div class="meta-val">{summary['default_rate']:,.2f} {summary['currency']}</div>
+    <div class="meta-sub">Scope: {frappe.utils.escape_html(summary['batch_label'])}</div>
+  </div>
+  <div class="meta-col">
+    <div class="meta-label">Departed (Unpaid)</div>
+    <div class="meta-val">{summary['total_count']} Candidates</div>
+    <div class="meta-sub" style="color:#b91c1c;font-weight:700;">Status: UNPAID</div>
+  </div>
+  <div class="meta-col">
+    <div class="meta-label">Total Commission Due</div>
+    <div class="meta-total-val">{summary['total_amount']:,.2f} {summary['currency']}</div>
+    <div class="meta-sub" style="color:#047857;">Due upon receipt</div>
+  </div>
+</div>
 
-    html += f"""
-                <tr style="background: #e0f2fe; font-weight: 800;">
-                    <td colspan="7" class="text-right" style="padding: 8px;">TOTAL OUTSTANDING COMMISSION ({summary['total_count']} CANDIDATES):</td>
-                    <td class="text-right" style="padding: 8px; color: #047857; font-size: 11px;">{summary['total_amount']:,.2f} {summary['currency']}</td>
-                </tr>
-            </tbody>
-        </table>
+<table class="dt">
+  <thead>
+    <tr>
+      <th style="width:4%;" class="tc">#</th>
+      <th style="width:12%;">Candidate ID</th>
+      <th style="width:20%;">Full Name</th>
+      <th style="width:12%;">Passport No</th>
+      <th style="width:13%;">Job Position</th>
+      <th style="width:10%;" class="tc">Departed</th>
+      <th style="width:17%;">Sponsor / Employer</th>
+      <th style="width:12%;" class="tr">Commission</th>
+    </tr>
+  </thead>
+  <tbody>
+    {rows_html}
+  </tbody>
+  <tfoot>
+    <tr>
+      <td colspan="7" class="tr">TOTAL OUTSTANDING ({summary['total_count']} candidates):</td>
+      <td class="tr">{summary['total_amount']:,.2f} {summary['currency']}</td>
+    </tr>
+  </tfoot>
+</table>
 
-        <div style="font-size: 9px; color: #64748b; margin-top: 10px; line-height: 1.4;">
-            <b>Notice:</b> This statement covers deployed workers who have departed origin airport under <b>{summary['company_name']}</b> quota. Commission is calculated based on the agreed rate of {summary['default_rate']:,.2f} {summary['currency']} per deployed candidate.
-        </div>
+<div class="notice">
+  <strong>Note:</strong> This statement covers workers who have departed under the
+  <strong>{frappe.utils.escape_html(summary['company_name'])}</strong> placement quota.
+  Commission is due at the agreed rate of
+  <strong>{summary['default_rate']:,.2f} {summary['currency']}</strong> per deployed candidate.
+  This document constitutes an official billing request.
+</div>
 
-        <table class="footer-sign">
-            <tr>
-                <td class="sign-box">
-                    <b>Prepared By:</b> Finance & Accounts Department<br>
-                    Applicant Processing System
-                </td>
-                <td style="width: 4%;"></td>
-                <td class="sign-box" style="text-align: right;">
-                    <b>Approved By (Agency Representative):</b><br>
-                    {summary['company_name']}
-                </td>
-            </tr>
-        </table>
-    </body>
-    </html>
-    """
+<div class="sig-table">
+  <div class="sig-cell"><strong>Prepared By:</strong> Finance &amp; Accounts — Applicant Processing System</div>
+  <div class="sig-cell" style="text-align:right;">
+    <strong>Received &amp; Acknowledged:</strong><br>
+    {frappe.utils.escape_html(summary['company_name'])}
+  </div>
+</div>
 
-    pdf_bytes = get_pdf(html, options={"page-size": "A4", "orientation": "Portrait", "margin-top": "12mm", "margin-bottom": "12mm"})
+</body>
+</html>"""
+
+    pdf_bytes = get_pdf(html, options={
+        "page-size": "A4",
+        "orientation": "Portrait",
+        "margin-top": "14mm",
+        "margin-bottom": "14mm",
+        "margin-left": "16mm",
+        "margin-right": "16mm",
+        "encoding": "UTF-8",
+    })
     return pdf_bytes, "application/pdf", "pdf"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Whitelisted RPC Endpoints
+# Whitelisted API Endpoints
 # ─────────────────────────────────────────────────────────────────────────────
 
 @frappe.whitelist()
 def get_unpaid_commission_summary(contractor):
     """
-    Returns quick stats and candidate count for the contractor commission dialog.
+    Returns a lightweight summary (count + totals) for a partner agency
+    without returning the full candidate list. Used by the Contractor form banner.
     """
-    summary, candidates = get_unpaid_commission_data(contractor, limit="all")
+    contractor_doc = _get_contractor(contractor)
+    default_rate = flt(contractor_doc.default_commission_amount) or 0.0
+    currency = contractor_doc.default_commission_currency or "SAR"
+    cols = _commission_columns_present()
+    has_status = cols["commission_status"]
+
+    status_filter = (
+        "(app.commission_status IS NULL OR app.commission_status = '' OR app.commission_status = 'Unpaid')"
+        if has_status else "1=1"
+    )
+
+    sql = f"""
+        SELECT COUNT(DISTINCT app.name) AS total_count
+        FROM `tabApplicant` app
+        LEFT JOIN `tabApplicant Dossier` dos ON dos.applicant = app.name
+        LEFT JOIN `tabDSR` dsr ON dsr.applicant_dossier = dos.name
+        LEFT JOIN `tabDSR Departure` dep ON dep.dsr = dsr.name
+        WHERE
+            (app.locked_contractor = %(c)s OR dos.contractor_name = %(c)s OR dsr.contractor_name = %(c)s)
+            AND (app.applicant_state = 'Departed' OR dep.status = 'Departed' OR dsr.departure_status = 'Departed')
+            AND {status_filter}
+    """
+    result = frappe.db.sql(sql, {"c": contractor}, as_dict=True)
+    total_count = (result[0].total_count if result else 0) or 0
+
     return {
-        "summary": summary,
-        "sample_candidates": candidates[:10]
+        "summary": {
+            "contractor": contractor,
+            "company_name": contractor_doc.company_name,
+            "country": contractor_doc.country or "—",
+            "contact_person": contractor_doc.contact_person or "—",
+            "phone": contractor_doc.phone or contractor_doc.whatsapp or "—",
+            "default_rate": default_rate,
+            "currency": currency,
+            "total_count": total_count,
+            "total_amount": total_count * default_rate,
+            "generated_on": formatdate(today(), "dd-MMM-yyyy"),
+        }
     }
 
 
 @frappe.whitelist()
 def get_unpaid_commission_candidates_list(contractor, limit=30, from_date=None, to_date=None):
     """
-    Returns paginated / batch candidates list for table preview in Desk.
+    Returns the full candidate list with summary for the Agency Commission Desk page.
     """
-    summary, candidates = get_unpaid_commission_data(contractor, limit=limit, from_date=from_date, to_date=to_date)
-    return {
-        "summary": summary,
-        "candidates": candidates
-    }
+    summary, candidates = get_unpaid_commission_data(
+        contractor, limit=limit, from_date=from_date, to_date=to_date
+    )
+    return {"summary": summary, "candidates": candidates}
 
 
 @frappe.whitelist()
 def export_unpaid_commission_report(contractor, export_format="excel", limit=30, from_date=None, to_date=None, applicant_ids=None):
     """
-    Generates and downloads the Excel (.xlsx) or PDF (.pdf) billing report.
-    Directly streams file binary back to browser.
+    Streams an Excel (.xlsx) or PDF commission billing statement for download.
     """
+    frappe.only_for(["System Manager", "LMS Employee", "Accounts Manager"])
+
     summary, candidates = get_unpaid_commission_data(
         contractor=contractor,
         limit=limit,
         from_date=from_date,
         to_date=to_date,
-        applicant_ids=applicant_ids
+        applicant_ids=applicant_ids,
     )
 
-    clean_name = contractor.replace(" ", "_").replace("/", "-")
-    batch_tag = f"Last_{len(candidates)}" if limit and str(limit).lower() != "all" else "All"
-    date_tag = today().replace("-", "")
+    if not candidates:
+        frappe.throw(frappe._("No unpaid departed candidates found for the selected agency and filters."))
 
-    if str(export_format).lower() in ("pdf", "invoice"):
-        content, mime_type, ext = build_commission_pdf(summary, candidates)
-        filename = f"Commission_Statement_{clean_name}_{batch_tag}_{date_tag}.pdf"
+    safe_name = "".join(c if c.isalnum() or c in "._-" else "_" for c in contractor)
+    date_tag = today().replace("-", "")
+    limit_int, _ = _normalize_limit(limit)
+    batch_tag = f"Last{limit_int}" if limit_int else "All"
+
+    fmt = str(export_format).lower()
+    if fmt in ("pdf", "invoice"):
+        content, mime, ext = build_commission_pdf(summary, candidates)
+        filename = f"Commission_{safe_name}_{batch_tag}_{date_tag}.pdf"
     else:
-        content, mime_type, ext = build_commission_excel(summary, candidates)
-        filename = f"Commission_Statement_{clean_name}_{batch_tag}_{date_tag}.{ext}"
+        content, mime, ext = build_commission_excel(summary, candidates)
+        filename = f"Commission_{safe_name}_{batch_tag}_{date_tag}.{ext}"
 
     frappe.response["type"] = "binary"
     frappe.response["filename"] = filename
@@ -654,72 +626,97 @@ def export_unpaid_commission_report(contractor, export_format="excel", limit=30,
 @frappe.whitelist()
 def mark_commissions_as_paid(contractor, applicant_ids=None, reference=None, payment_date=None, limit=30):
     """
-    Marks the exported batch (or specified applicant_ids) as Paid in Applicant records
-    and auto-posts an Income Expense Log entry for financial audit reconciliation.
+    Marks a batch of departed candidates as commission-settled.
+    Posts an Income entry in the applicant financial ledger.
+    Requires System Manager or Accounts Manager role.
     """
-    if not applicant_ids:
-        # Fetch matching unpaid candidate names up to limit
+    frappe.only_for(["System Manager", "Accounts Manager"])
+
+    ids = _parse_applicant_ids(applicant_ids)
+    if not ids:
         _, candidates = get_unpaid_commission_data(contractor, limit=limit)
-        applicant_ids = [c["name"] for c in candidates]
-    elif isinstance(applicant_ids, str):
-        try:
-            applicant_ids = json.loads(applicant_ids)
-        except Exception:
-            applicant_ids = [a.strip() for a in applicant_ids.split(",") if a.strip()]
+        ids = [c["name"] for c in candidates]
 
-    if not applicant_ids:
-        return {"status": "warning", "message": "No eligible unpaid candidates found to mark as Paid."}
+    if not ids:
+        return {
+            "status": "warning",
+            "message": frappe._("No eligible unpaid candidates found for this agency."),
+        }
 
+    if not reference:
+        frappe.throw(frappe._("A payment reference (bank transfer / receipt number) is required."))
+
+    contractor_doc = _get_contractor(contractor)
+    default_rate = flt(contractor_doc.default_commission_amount) or 0.0
+    currency = contractor_doc.default_commission_currency or "SAR"
     pay_date = payment_date or today()
-    ref_str = reference or f"BATCH-PAY-{today()}"
+    ref_str = reference.strip()
 
-    contractor_doc = frappe.get_doc("Contractor", contractor)
-    default_rate = flt(getattr(contractor_doc, "default_commission_amount", 1000.0) or 1000.0)
-    currency = getattr(contractor_doc, "default_commission_currency", "SAR") or "SAR"
+    # Resolve which columns exist once, outside the loop
+    cols = _commission_columns_present()
 
-    updated_count = 0
-    total_paid_amount = 0.0
+    updated = 0
+    total_paid = 0.0
+    errors = []
 
-    for app_id in applicant_ids:
-        if frappe.db.exists("Applicant", app_id):
+    for app_id in ids:
+        try:
+            if not frappe.db.exists("Applicant", app_id):
+                continue
+
             app = frappe.get_doc("Applicant", app_id)
-            rate = flt(app.commission_amount) if app.commission_amount else default_rate
+            rate = flt(app.get("commission_amount")) or default_rate
 
-            if hasattr(app, "commission_status") or (hasattr(frappe.db, "has_column") and frappe.db.has_column("Applicant", "commission_status")):
+            if cols["commission_status"]:
                 app.commission_status = "Paid"
-            if hasattr(app, "commission_amount") or (hasattr(frappe.db, "has_column") and frappe.db.has_column("Applicant", "commission_amount")):
+            if cols["commission_amount"]:
                 app.commission_amount = rate
-            if hasattr(app, "commission_paid_date") or (hasattr(frappe.db, "has_column") and frappe.db.has_column("Applicant", "commission_paid_date")):
+            if cols["commission_paid_date"]:
                 app.commission_paid_date = pay_date
-            if hasattr(app, "commission_batch_ref") or (hasattr(frappe.db, "has_column") and frappe.db.has_column("Applicant", "commission_batch_ref")):
+            if cols["commission_batch_ref"]:
                 app.commission_batch_ref = ref_str
 
-            # Add an accounting log entry if not already present
-            existing_income = any(
-                row.transaction_type == "Income" and ref_str in (row.description or "")
+            # Idempotent income log: only append if this reference isn't already posted
+            already_logged = any(
+                (row.get("transaction_type") == "Income" and ref_str in (row.get("description") or ""))
                 for row in (app.income_expense_logs or [])
             )
-
-            if not existing_income:
+            if not already_logged:
                 app.append("income_expense_logs", {
                     "transaction_type": "Income",
                     "amount": rate,
                     "date": pay_date,
-                    "description": f"Agency Commission Received: {contractor} (Ref: {ref_str})",
-                    "source_doctype": "Contractor Commission Batch"
+                    "description": f"Agency commission — {contractor} (Ref: {ref_str})",
+                    "source_doctype": "Contractor",
+                    "source_name": contractor,
                 })
 
             app.save(ignore_permissions=True)
-            updated_count += 1
-            total_paid_amount += rate
+            updated += 1
+            total_paid += rate
+
+        except Exception as exc:
+            frappe.log_error(
+                title=f"Commission settlement failed for {app_id}",
+                message=frappe.get_traceback(),
+            )
+            errors.append(app_id)
 
     frappe.db.commit()
 
+    msg = frappe._(
+        "{0} candidates settled — {1:,.2f} {2} posted. Reference: {3}"
+    ).format(updated, total_paid, currency, ref_str)
+
+    if errors:
+        msg += frappe._(" ({0} records had errors and were skipped — check Error Log.)").format(len(errors))
+
     return {
-        "status": "success",
-        "updated_count": updated_count,
-        "total_amount": total_paid_amount,
+        "status": "success" if not errors else "partial",
+        "updated_count": updated,
+        "skipped_count": len(errors),
+        "total_amount": total_paid,
         "currency": currency,
         "reference": ref_str,
-        "message": f"Successfully marked {updated_count} candidates as Paid ({total_paid_amount:,.2f} {currency}). Reference: {ref_str}"
+        "message": msg,
     }
