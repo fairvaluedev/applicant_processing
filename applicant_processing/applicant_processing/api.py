@@ -1367,3 +1367,19 @@ from applicant_processing.applicant_processing.utils.commission_export import (
     export_unpaid_commission_report,
     mark_commissions_as_paid
 )
+
+# =========================================================================
+# MODULE 12: ADMIN USER & PERMISSION MANAGEMENT WRAPPERS
+# =========================================================================
+
+from applicant_processing.applicant_processing.utils.user_admin import (
+    create_system_user,
+    update_system_user,
+    set_user_password,
+    assign_user_roles,
+    manage_user_permission,
+    get_system_users,
+    get_available_roles,
+    get_user_detail
+)
+

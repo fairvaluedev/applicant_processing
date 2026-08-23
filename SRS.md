@@ -2,7 +2,7 @@
 ## End-to-End Overseas Recruitment & Applicant Processing System (Multi-Country Platform)
 
 * **System Name:** FairValue / Overseas Applicant Processing System (APS)
-* **Document Version:** 5.2.0 (Human-Centric & Flexible Operations: Manager Override Audit Valves, Batch Action Workbenches, Forgiving State Rollbacks, and On-Demand Multi-Channel Dispatches)
+* **Document Version:** 5.3.0 (Production Reference Architecture: ICAO 9303 MRZ Engine, PyMuPDF Contract Structurizer, VAPID Web Push, WhatsApp Cloud API v18.0 & Multi-Format Commission Exporters)
 * **Scope:** Overseas Domestic & Skilled Worker Recruitment Lifecycle (Ethiopia $\rightarrow$ Kingdom of Saudi Arabia & State of Kuwait Corridors + Multi-Country GCC Extensibility)
 * **Target Platform:** Frappe Framework v15 / Python 3.11+ / MariaDB 10.6+ / Redis / Docker / Linux
 * **Status:** Approved / Specification Baseline
@@ -445,7 +445,36 @@ flowchart TD
 
 ---
 
-## 6.7 Module 7: Compliance Timers, Watchdogs & Dual Communication Engine
+## 6.7 Module 7: Compliance Timers, Watchdogs & Dual Communication Engine (Web Push & WhatsApp Cloud)
+
+```mermaid
+flowchart TD
+    subgraph CRON_DAEMONS["Automated Background Schedulers (hooks.py)"]
+        CronDaily["Daily at 00:00"] --> WatchdogMed["1. Medical Expiration Watchdog<br/>(Alerts if GAMCA expires in <= 15 days)"]
+        CronDaily --> WatchdogLMS["2. LMS Missing Data Watchdog<br/>(Alerts if work permit stalled > 7 days)"]
+        CronBiweekly["Mondays & Thursdays at 08:00"] --> WatchdogWakala["3. Bi-Weekly Wakala Reminder Cron<br/>(Alerts agencies of pending Musaned POA)"]
+    end
+
+    subgraph DISPATCH_CHANNELS["Multi-Channel Notification Dispatcher (push_api.py)"]
+        WatchdogMed & WatchdogLMS & WatchdogWakala --> Dispatcher["push_api.send_notification()"]
+        
+        Dispatcher --> WebPush["RFC 8292 VAPID Web Push<br/>- ECDSA NIST P-256 Key Pairs<br/>- Dispatches to FCM, Mozilla, Apple<br/>- Intercepted by Service Worker (sw.js)"]
+        Dispatcher --> WhatsApp["Meta WhatsApp Cloud API v18.0<br/>- Posts to graph.facebook.com/v18.0<br/>- Templates + Media Attachments (CV/Visa)"]
+    end
+```
+
+### Functional Requirements:
+1. **Browser Web Push Subsystem (RFC 8292 / VAPID):**
+   - Implements native VAPID key generation and claim formulation (`py_vapid`, `cryptography`).
+   - Securely stores ECDSA P-256 public/private key pairs in the `Notification Config` single DocType.
+   - Client-side service worker (`sw.js`) intercepts push events in the background, displays rich interactive notifications with action buttons, and routes clicks directly to candidate records.
+2. **Meta WhatsApp Cloud API Integration (v18.0):**
+   - Direct HTTP POST integration to `https://graph.facebook.com/v18.0/{phone_number_id}/messages`.
+   - Sends transactional reminders, candidate selection confirmations, and PDF documents (CVs, contracts, flight tickets).
+3. **Automated Scheduler Matrix:**
+   - `check_medical_expirations`: Runs daily to flag GAMCA medicals expiring within 15 days.
+   - `check_lms_missing_data_requests`: Runs daily to identify stalled Ministry clearances.
+   - `check_pending_wakalas_biweekly`: Runs Mondays & Thursdays at 08:00 to alert partner agencies of pending Wakalas.
 
 ```mermaid
 graph TD
@@ -483,7 +512,24 @@ graph TD
 
 ---
 
-## 6.8 Module 8: Universal Financial Ledger & Commission Engine
+## 6.8 Module 8: Universal Financial Ledger, Commission Reconciliation & Exporters
+
+```mermaid
+flowchart LR
+    ClearanceApproved["LMS Clearance Approved"] --> AutoPost["_auto_post_agency_commission()<br/>- Appends fee row to tabApplicant Fee<br/>- Sets commission_status = 'Unpaid'"]
+    AutoPost --> BillingDesk["Agency Commissions Desk Page<br/>(agency_commissions.js)"]
+    
+    BillingDesk --> ExporterXLSX["XlsxWriter Engine<br/>- Binary .xlsx generation<br/>- Styled headers, formulas, candidate breakdown"]
+    BillingDesk --> ExporterPDF["wkhtmltopdf Engine<br/>- Formatted HTML statement to PDF"]
+    BillingDesk --> Reconcile["mark_commissions_as_paid() RPC<br/>- Atomic settlement updates"]
+```
+
+### Functional Requirements:
+1. **Automated Commission Accrual:** When `LMS Clearance` is approved, the system resolves the partner agency's commission rate from `Contractor` and appends a row to `tabApplicant Fee`.
+2. **Dynamic Commissions Desk (`agency_commissions`):** Custom single-page Desk interface displaying real-time billing metrics, candidate tables, and date-range filters.
+3. **Binary Excel Exporter (`XlsxWriter`):** Streams `.xlsx` spreadsheets with currency formatting, dynamic sum formulas, contractor branding, and applicant breakdowns via `export_unpaid_commission_report()`.
+4. **PDF Statement Generator (`wkhtmltopdf`):** Compiles Jinja-templated HTML statements into downloadable PDF billing invoices.
+5. **Atomic Settlement Action:** Staff execute `mark_commissions_as_paid()` to settle balances with reference IDs and audit timestamps.
 
 ```mermaid
 graph LR
@@ -583,6 +629,36 @@ graph LR
      - *How many agency complaints investigated & resolved by Welfare Officer X?*
 
 ---
+
+---
+
+## 6.11 Module 11: Containerized Production Infrastructure & DevOps
+
+```mermaid
+flowchart TD
+    DockerCompose["docker-compose.yml Orchestrator"]
+    DockerCompose --> AppContainer["app: Python 3.12 + Node 20 LTS + wkhtmltopdf"]
+    DockerCompose --> DBContainer["db: MariaDB 10.6 InnoDB"]
+    DockerCompose --> RedisCache["redis-cache: Port 6379"]
+    DockerCompose --> RedisQueue["redis-queue: Port 6379"]
+    
+    AppContainer --> Entrypoint["docker-entrypoint.sh Bootstrapper:<br/>1. Network connectivity handshake<br/>2. bench migrate & patches.txt execution<br/>3. sync_schema.py reload<br/>4. push_api.ensure_vapid_keys()<br/>5. bench serve --port 8000"]
+```
+
+### Infrastructure Specifications:
+1. **Multi-Stage Containerization (`Dockerfile`):** Multi-stage Debian Bookworm base with Node.js 20 LTS, `wkhtmltopdf` 0.12.6, and Python build tools.
+2. **Automated Migration Lifecycle (`docker-entrypoint.sh`):** Validates database connectivity, runs migrations, verifies VAPID encryption keys, and executes schema synchronization patches on boot.
+3. **Cloud Deployability:** Compatible with Railway (`railway.json`), AWS ECS, Docker Compose, and traditional bare-metal bench setups.
+
+---
+
+## 6.12 Module 12: Custom Single-Page Desk Applications & Web Portal
+
+1. **`accounting_dashboard`**: Desk SPA tracking gross revenue, candidate processing fees, operational expenses, and profit margins.
+2. **`agency_commissions`**: Desk SPA for partner agency commission settlements, filterable ledger views, and Excel/PDF report generation.
+3. **`agency_portal`**: Desk SPA for internal coordinators to view partner agency candidate selections.
+4. **`complaints_desk`**: Desk SPA for dispute intake, investigation tracking, and 3-month guarantee replacements.
+5. **`www/agency_portal.html`**: 1,605 lines modern responsive glassmorphism web portal for foreign recruitment agencies.
 
 # 7. Data Dictionary & Entity Relationship (ER) Schema
 
