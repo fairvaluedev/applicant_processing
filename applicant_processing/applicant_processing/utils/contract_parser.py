@@ -52,6 +52,7 @@ def normalize_text(text):
     Cleans raw text extracted from PDF:
     - Normalizes Unicode (NFKC)
     - Replaces Arabic presentation forms with base Arabic
+    - Strips unmapped Private Use Area (PUA) corrupted characters (\uE000-\uF8FF)
     - Strips bidi / direction markers
     - Cleans whitespace
     """
@@ -64,6 +65,8 @@ def normalize_text(text):
     normalized = "".join(chars)
 
     normalized = unicodedata.normalize("NFKC", normalized)
+    # Strip unmapped Private Use Area (PUA) glyphs and control marks
+    normalized = re.sub(r'[\ue000-\uf8ff\ufff0-\uffff\u0080-\u009f]', '', normalized)
     normalized = re.sub(r'[\u200e\u200f\u202a-\u202e\u2066-\u2069\ufeff\u200b\u00ad]', '', normalized)
     normalized = re.sub(r'[\xa0\u2000-\u200a\u202f\u205f\u3000]', ' ', normalized)
     return normalized
@@ -159,16 +162,19 @@ class ContractTextStructurizer:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 3. PyMuPDF Extraction & Document Parser
+# 3. Multi-Engine PDF Text Extraction
 # ─────────────────────────────────────────────────────────────────────────────
-def extract_text_with_pymupdf(file_path):
+def extract_text_from_pdf(file_path):
     """
-    Extracts text blocks from PDF using PyMuPDF (fitz/pymupdf).
-    Sorts blocks in reading order (top-to-bottom, left-to-right).
+    Extracts text blocks/lines from PDF using available PDF engines in order of priority:
+    1. PyMuPDF (fitz)
+    2. pypdf
+    3. pdfplumber
     """
     if not file_path or not os.path.exists(file_path):
         return []
 
+    # 1. PyMuPDF
     try:
         try:
             import pymupdf as fitz
@@ -184,11 +190,43 @@ def extract_text_with_pymupdf(file_path):
             for b in sorted_blocks:
                 if len(b) >= 5 and b[4].strip():
                     blocks.append(b[4].strip())
-        return blocks
-    except Exception as e:
-        frappe.log_error(f"PyMuPDF error reading {file_path}: {e}", "Contract Parser")
+        if blocks:
+            return blocks
+    except Exception:
+        pass
+
+    # 2. pypdf
+    try:
+        import pypdf
+        reader = pypdf.PdfReader(file_path)
+        lines = []
+        for page in reader.pages:
+            t = page.extract_text()
+            if t:
+                lines.extend(t.splitlines())
+        if lines:
+            return lines
+    except Exception:
+        pass
+
+    # 3. pdfplumber
+    try:
+        import pdfplumber
+        lines = []
+        with pdfplumber.open(file_path) as pdf:
+            for page in pdf.pages:
+                t = page.extract_text()
+                if t:
+                    lines.extend(t.splitlines())
+        if lines:
+            return lines
+    except Exception:
+        pass
 
     return []
+
+# Alias for backwards compatibility
+extract_text_with_pymupdf = extract_text_from_pdf
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -208,6 +246,9 @@ def clean_extracted_value(val):
         return None
     val_str = str(val).strip()
 
+    # Strip any unmapped PUA characters
+    val_str = re.sub(r'[\ue000-\uf8ff\ufff0-\uffff\u0080-\u009f]', '', val_str)
+
     # If bilingual label remnant like " / اسم العاملة: Meseret Hailemariam Desta" or "ة: Meseret"
     if ":" in val_str:
         prefix, suffix = val_str.split(":", 1)
@@ -220,6 +261,25 @@ def clean_extracted_value(val):
     val_str = re.sub(r'^[:=\-–—\s|/#]+', '', val_str)
     val_str = re.sub(r'[:=\-–—\s|/#]+$', '', val_str)
     val_str = re.sub(r'\s+', ' ', val_str).strip()
+
+    # If English text has corrupted Arabic trailing fragments attached
+    if re.match(r'^[A-Za-z0-9@_+\s.,&\'\-\u0600-\u064A\u0660-\u0669،]+$', val_str):
+        val_str = val_str.strip()
+    elif re.search(r'^[A-Za-z0-9@_+\s.,&\'\-]{4,}', val_str):
+        m_eng = re.search(r'^([A-Za-z0-9@_+\s.,&\'\-]{4,})', val_str)
+        if m_eng:
+            val_str = m_eng.group(1).strip()
+
+    # If purely Arabic text contains broken ligature font decoding artifacts
+    if re.search(r'[\u0600-\u064A]', val_str) and not re.search(r'[A-Za-z]', val_str):
+        if re.search(r'([ا-ي])\1{2,}|زز|اا|دد|رر|ةة', val_str):
+            return None
+        known_kw = ['طريق', 'شارع', 'حي', 'الملك', 'الرياض', 'محايل', 'عسير', 'جدة', 'الدمام', 'مكة', 'المدينة', 'عمارة', 'برج', 'شركة', 'مكتب', 'عبد', 'محمد', 'علي', 'أحمد', 'سالم', 'سلطان', 'إثيوبيا', 'اثيوبيا']
+        if not any(kw in val_str for kw in known_kw):
+            words = [w for w in re.split(r'[\s,،.\-–/:]+', val_str) if len(w) >= 3]
+            if len(words) < 2:
+                return None
+
     if val_str.startswith("(") and val_str.endswith(")"):
         inner = val_str[1:-1].strip()
         if inner.lower() in GENERIC_TITLES:
@@ -452,11 +512,12 @@ def parse_structured_contract_text(full_text_or_blocks):
         text,
         [
             r'مدة\s*العقد\s*(سنتين|سنة\s*واحدة|[0-9]+\s*(?:سنة|سنتين|أشهر|شهر|عام|أعوام))',
-            r'(?:مدة\s*العقد|مدة\s*الاتفاقية|المدة)\s*[:=\-–]?\s*([0-9]+\s*(?:سنة|سنتين|أشهر|شهر|عام|أعوام|years?|months?)|سنتين|سنة\s*واحدة)',
-            r'(?:contract\s*duration|duration|period|contract\s*period)\s*[:=\-–]?\s*([0-9]+\s*(?:years?|months?)|2\s*years|24\s*months)',
+            r'(?:مدة\s*العقد|مدة\s*الاتفاقية)\s*[:=\-–]?\s*([0-9]+\s*(?:سنة|سنتين|أشهر|شهر|عام|أعوام|years?|months?)|سنتين|سنة\s*واحدة)',
+            r'(?:contract\s*duration|contract\s*period)\s*[:=\-–]?\s*([0-9]+\s*(?:years?|months?)|2\s*years|24\s*months)',
+            r'\b(2\s*Years|24\s*Months|1\s*Year|12\s*Months|سنتين)\b',
         ]
     )
-    if dur:
+    if dur and len(dur) < 20 and not any(k in dur.lower() for k in ["probation", "days", "يوم", "تجربة"]):
         data["contract_duration"] = dur
     else:
         data["contract_duration"] = "2 Years"
@@ -494,8 +555,9 @@ def parse_structured_contract_text(full_text_or_blocks):
     data["profession"] = extract_field_from_text(
         text,
         [
-            r'(?:Position|الوظيفة)\s*[:=\-–]?\s*([^\r\n]+)',
+            r'Position\s*[:=\-–]?\s*([A-Za-z\s]+)',
             r'hired\s*as\s*([A-Za-z\s]+)',
+            r'الوظيفة\s*[:=\-–]?\s*([A-Za-z\s]+|عاملة\s*منزلية|سائق\s*خاص|[^\r\n]+)',
             r'لعمل\s*(عاملة\s*منزلية|سائق\s*خاص|[^\r\n]+)',
             r'(?:المهنة|المسمى\s*الوظيفي)\s*[:=\-–]?\s*([^\r\n]+)',
             r'(?:profession|job|occupation)\s*[:=\-–]?\s*([^\r\n]+)',
@@ -569,8 +631,9 @@ def parse_structured_contract_text(full_text_or_blocks):
     data["employer_city"] = extract_field_from_text(
         emp_text,
         [
-            r'(?:City|المدينة)\s*[:=\-–]?\s*([^\r\n]+)',
-            r'(?:city|residence\s*city|مدينة\s*الإقامة|مدينة\s*صاحب\s*العمل)\s*[:=\-–]?\s*([^\r\n]+)',
+            r'City\s*[:=\-–]?\s*([A-Za-z\s]+)',
+            r'(?:المدينة|مدينة\s*الإقامة|مدينة\s*صاحب\s*العمل)\s*[:=\-–]?\s*([^\r\n]+)',
+            r'(?:city|residence\s*city)\s*[:=\-–]?\s*([^\r\n]+)',
         ]
     )
 
@@ -595,7 +658,11 @@ def parse_structured_contract_text(full_text_or_blocks):
     )
     if m_rname:
         raw_rn = m_rname.group(1).replace("\n", " ").strip()
-        rec_name = clean_extracted_value(raw_rn)
+        m_eng = re.search(r'([A-Za-z0-9\s.,&\'\-]{4,})', raw_rn)
+        if m_eng and len(m_eng.group(1).strip()) > 3:
+            rec_name = m_eng.group(1).strip()
+        else:
+            rec_name = clean_extracted_value(raw_rn)
 
     if not rec_name:
         rec_name = extract_field_from_text(
@@ -634,7 +701,8 @@ def parse_structured_contract_text(full_text_or_blocks):
     data["recruiting_agency_city"] = extract_field_from_text(
         rec_text,
         [
-            r'(?:City|المدينة)\s*[:=\-–]?\s*([^\r\n]+)',
+            r'City\s*[:=\-–]?\s*([A-Za-z\s]+)',
+            r'(?:المدينة)\s*[:=\-–]?\s*([^\r\n]+)',
         ]
     )
 
@@ -658,7 +726,11 @@ def parse_structured_contract_text(full_text_or_blocks):
     )
     if m_oname:
         raw_on = m_oname.group(1).replace("\n", " ").strip()
-        orig_name = clean_extracted_value(raw_on)
+        m_eng_oa = re.search(r'([A-Za-z0-9\s.,&\'\-]{4,})', raw_on)
+        if m_eng_oa and len(m_eng_oa.group(1).strip()) > 3:
+            orig_name = m_eng_oa.group(1).strip()
+        else:
+            orig_name = clean_extracted_value(raw_on)
 
     if not orig_name:
         orig_name = extract_field_from_text(
@@ -697,7 +769,8 @@ def parse_structured_contract_text(full_text_or_blocks):
     data["origin_agency_city"] = extract_field_from_text(
         orig_text,
         [
-            r'(?:City|المدينة)\s*[:=\-–]?\s*([^\r\n]+)',
+            r'City\s*[:=\-–]?\s*([A-Za-z\s]+)',
+            r'(?:المدينة)\s*[:=\-–]?\s*([^\r\n]+)',
         ]
     )
 
@@ -801,7 +874,7 @@ def parse_contract_document(file_url=None, dossier_name=None, raw_text=None):
     if not extracted_data and file_url:
         file_path = _resolve_frappe_file_path(file_url)
         if file_path and file_path.lower().endswith(".pdf"):
-            blocks = extract_text_with_pymupdf(file_path)
+            blocks = extract_text_from_pdf(file_path)
             if blocks:
                 extracted_data = parse_structured_contract_text(blocks)
 
@@ -811,18 +884,16 @@ def parse_contract_document(file_url=None, dossier_name=None, raw_text=None):
         if dos.attached_file:
             file_path = _resolve_frappe_file_path(dos.attached_file)
             if file_path and file_path.lower().endswith(".pdf"):
-                blocks = extract_text_with_pymupdf(file_path)
+                blocks = extract_text_from_pdf(file_path)
                 if blocks:
                     extracted_data = parse_structured_contract_text(blocks)
 
     if not extracted_data:
         extracted_data = parse_structured_contract_text("")
 
-    # Update Dossier record if dossier_name is provided
+    # Update Dossier record atomically if dossier_name is provided
     updated_fields = []
     if dossier_name and frappe.db.exists("Applicant Dossier", dossier_name):
-        dos = frappe.get_doc("Applicant Dossier", dossier_name)
-
         field_mapping = [
             ("sponsor_name", "sponsor_name"),
             ("sponsor_id", "sponsor_id"),
@@ -850,30 +921,35 @@ def parse_contract_document(file_url=None, dossier_name=None, raw_text=None):
             ("origin_agency_email", "origin_agency_email"),
         ]
 
+        doc_updates = {}
         for ext_key, doc_field in field_mapping:
             val = extracted_data.get(ext_key)
-            if val is not None and hasattr(dos, doc_field):
-                setattr(dos, doc_field, val)
+            if val is not None:
+                doc_updates[doc_field] = val
                 updated_fields.append(doc_field)
 
-        dos.is_parsed = 1
-        dos.save(ignore_permissions=True)
+        doc_updates["is_parsed"] = 1
 
-        # Cross-update applicant locked contractor and state
-        if dos.applicant:
-            target_contractor = dos.contractor_name or dos.agency
-            if target_contractor:
-                app_doc = frappe.get_doc("Applicant", dos.applicant)
-                if not app_doc.locked_contractor or app_doc.locked_contractor != target_contractor:
+        # Use atomic DB update to prevent TimestampMismatchError
+        frappe.db.set_value("Applicant Dossier", dossier_name, doc_updates, update_modified=True)
+        frappe.db.commit()
+
+        # Cross-update applicant locked contractor and state safely
+        applicant = frappe.db.get_value("Applicant Dossier", dossier_name, "applicant")
+        if applicant:
+            target_contractor = doc_updates.get("contractor_name") or doc_updates.get("agency")
+            try:
+                if target_contractor:
                     from frappe.utils import now_datetime
-                    app_doc.locked_contractor = target_contractor
-                    app_doc.locked_at = now_datetime()
-                    if app_doc.applicant_state in ("Draft", "Registered", "CV Generated", "Data Complete"):
-                        app_doc.applicant_state = "Selected"
-                    app_doc.save(ignore_permissions=True)
+                    frappe.db.set_value("Applicant", applicant, {
+                        "locked_contractor": target_contractor,
+                        "locked_at": now_datetime(),
+                    }, update_modified=True)
 
-            from applicant_processing.applicant_processing.doctype.applicant.applicant import recalculate_applicant_state
-            recalculate_applicant_state(dos.applicant)
+                from applicant_processing.applicant_processing.doctype.applicant.applicant import recalculate_applicant_state
+                recalculate_applicant_state(applicant)
+            except Exception as e:
+                frappe.log_error(f"Failed to update applicant state for {applicant}: {e}", "Dossier Contract Parse")
 
     return {
         "status": "success",
