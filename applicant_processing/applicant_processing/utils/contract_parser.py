@@ -76,7 +76,7 @@ class ContractTextStructurizer:
     """
     Parses and organizes raw PDF text blocks, multi-line strings, and tables into
     structured semantic lines, section blocks, and key-value maps.
-    Works seamlessly with Arabic, English, and bilingual documents.
+    Handles standard bilateral Saudi Musaned employment contract layouts.
     """
 
     def __init__(self, raw_blocks_or_text):
@@ -87,8 +87,8 @@ class ContractTextStructurizer:
             "header": "",
             "employer": "",
             "recruiting_agency": "",
-            "origin_agency": "",
             "worker": "",
+            "origin_agency": "",
             "financial": "",
         }
         self._process()
@@ -122,27 +122,34 @@ class ContractTextStructurizer:
         for line in self.clean_lines:
             lower = line.lower()
 
+            # 1. Section A: Employer (First Party)
             if any(k in lower for k in [
-                "الطرف الأول", "صاحب العمل", "بيانات صاحب العمل", "الكفيل", "المستقدم",
-                "first party", "employer details", "employer information", "first party (employer)"
-            ]) and not any(k in lower for k in ["اسم صاحب العمل", "هاتف صاحب العمل", "رقم هوية"]):
+                "a. employer", "ا. صاحب العمل", "صاحب العمل:", "بيانات صاحب العمل",
+                "first party", "الطرف الأول"
+            ]) and not any(k in lower for k in ["hereinafter called", "represented in", "اسم صاحب", "هاتف", "signature of", "توقيع"]):
                 current_section = "employer"
+            # 2. Section: Saudi Recruiting Agency (Second Party)
             elif any(k in lower for k in [
-                "الطرف الثاني", "مكتب الاستقدام", "شركة الاستقدام", "جهة الاستقدام المرخصة",
-                "second party", "recruiting agency", "recruitment office", "recruitment company", "contractor"
-            ]) and not any(k in lower for k in ["اسم المكتب", "هاتف المكتب", "ترخيص", "رقم ترخيص"]):
+                "saudi recruiting agency", "وكالة الاستقدام السعودية", "مكتب الاستقدام السعودي",
+                "represented in the kingdom of saudi arabia",
+                "second party", "الطرف الثاني", "مكتب الاستقدام:"
+            ]) and not any(k in lower for k in ["signature of", "توقيع"]):
                 current_section = "recruiting_agency"
+            # 3. Section B: Domestic Service Worker
             elif any(k in lower for k in [
-                "الطرف الثالث", "وكالة الاستقدام بالخارج", "وكالة الدولة الأجنبية", "الوكالة بالخارج", "مكتب الارسال",
-                "third party", "her country agency", "foreign agency", "foreign employment agent", "origin agency"
-            ]) and not any(k in lower for k in ["اسم الوكالة", "هاتف الوكالة", "ترخيص"]):
-                current_section = "origin_agency"
-            elif any(k in lower for k in [
-                "بيانات العامل", "بيانات العمالة", "العامل المنزلي", "العاملة المنزلية", "المستقدمة",
-                "domestic worker", "worker details", "applicant details", "details of applicant"
-            ]) and not any(k in lower for k in ["اسم العامل", "مهنة العامل", "جواز"]):
+                "b. domestic service worker", "ب. العامل المنزلي", "العامل المنزلي / العاملة المنزلية",
+                "domestic service worker", "domestic worker", "بيانات العامل", "worker details"
+            ]) and not any(k in lower for k in ["hereinafter called dsw", "represented in his", "signature of", "توقيع"]):
                 current_section = "worker"
-            elif any(k in lower for k in ["الالتزامات المالية", "الأجور", "financial obligations"]):
+            # 4. Section: Foreign Origin Agency (Third Party / Ethiopia Agency)
+            elif any(k in lower for k in [
+                "dsw represented", "represented in his", "represented in her", "her country agency",
+                "وكالة الاستقدام بالخارج", "وكالة الاستقدام:", "ethiopian recruitment agency",
+                "وكالة تصدير العمالة", "foreign agency", "third party", "الطرف الثالث"
+            ]) and not any(k in lower for k in ["signature of", "توقيع"]):
+                current_section = "origin_agency"
+            # 5. Financial / Wage Section
+            elif any(k in lower for k in ["6. wage", "6. الأجر", "wage", "الأجور"]):
                 current_section = "financial"
 
             section_lines[current_section].append(line)
@@ -191,7 +198,8 @@ GENERIC_TITLES = {
     "صاحب العمل", "الطرف الأول", "مكتب الاستقدام", "الطرف الثاني", "شركة الاستقدام",
     "الطرف الثالث", "وكالة الاستقدام بالخارج", "العامل", "العاملة", "العامل المنزلي",
     "بيانات العامل", "first party", "second party", "third party", "employer",
-    "recruiting agency", "recruitment office", "foreign agency", "domestic worker"
+    "recruiting agency", "recruitment office", "foreign agency", "domestic worker",
+    "domestic service worker", "saudi recruiting agency"
 }
 
 def clean_extracted_value(val):
@@ -205,12 +213,12 @@ def clean_extracted_value(val):
         prefix, suffix = val_str.split(":", 1)
         if len(prefix) < 30 and (
             prefix.startswith("/") or prefix.startswith("|") or
-            any(k in prefix.lower() for k in ["اسم", "name", "worker", "employer", "agency", "office", "الطرف", "صاحب", "مكتب", "وكالة", "ة", "رقم"])
+            any(k in prefix.lower() for k in ["اسم", "name", "worker", "employer", "agency", "office", "الطرف", "صاحب", "مكتب", "وكالة", "ة", "رقم", "street", "الشارع", "city", "المدينة"])
         ):
             val_str = suffix.strip()
 
-    val_str = re.sub(r'^[:=\-–—\s|/]+', '', val_str)
-    val_str = re.sub(r'[:=\-–—\s|/]+$', '', val_str)
+    val_str = re.sub(r'^[:=\-–—\s|/#]+', '', val_str)
+    val_str = re.sub(r'[:=\-–—\s|/#]+$', '', val_str)
     val_str = re.sub(r'\s+', ' ', val_str).strip()
     if val_str.startswith("(") and val_str.endswith(")"):
         inner = val_str[1:-1].strip()
@@ -245,7 +253,7 @@ def extract_field_from_text(text_or_lines, patterns, flags=re.IGNORECASE):
             val = m.group(1).strip()
             if "\n" in val:
                 val = val.split("\n")[0].strip()
-            val = re.split(r'\s{2,}|\t|\s+(?=[A-Za-z\u0600-\u06FF\s]+:)', val)[0].strip()
+            val = re.split(r'\s{2,}|\t', val)[0].strip()
             cleaned = clean_extracted_value(val)
             if cleaned:
                 return cleaned
@@ -260,9 +268,9 @@ def extract_field_from_text(text_or_lines, patterns, flags=re.IGNORECASE):
     for i, line in enumerate(lines):
         line_clean = line.strip()
         for l_pat in label_patterns:
-            if re.search(rf'^{l_pat}[:=\-–]?$', line_clean, flags=flags) and i + 1 < len(lines):
+            if re.search(rf'^{l_pat}[:=\-–#]?$', line_clean, flags=flags) and i + 1 < len(lines):
                 next_val = lines[i + 1].strip()
-                if next_val and not any(re.search(rf'^{lp}[:=\-–]?$', next_val, flags=flags) for lp in label_patterns):
+                if next_val and not any(re.search(rf'^{lp}[:=\-–#]?$', next_val, flags=flags) for lp in label_patterns):
                     cleaned = clean_extracted_value(next_val)
                     if cleaned:
                         return cleaned
@@ -271,7 +279,7 @@ def extract_field_from_text(text_or_lines, patterns, flags=re.IGNORECASE):
 
 
 def normalize_date_string(date_str):
-    """Converts various date formats (Gregorian or common formats) to YYYY-MM-DD."""
+    """Converts various date formats (Gregorian DD/MM/YYYY, YYYY-MM-DD, etc.) to YYYY-MM-DD."""
     if not date_str:
         return None
     d = str(date_str).strip()
@@ -327,12 +335,16 @@ def calculate_contract_end_date(contract_date, duration_str="2 Years"):
             m = re.search(r'\d+', dur_str)
             months = int(m.group(0)) if m else 24
             return str(start + relativedelta(months=months))
-        elif "سنتين" in dur_str or "2" in dur_str:
+        elif "سنتين" in dur_str:
             return str(start + relativedelta(years=2))
-        elif "year" in dur_str or "سنة" in dur_str or "1" in dur_str:
+        elif "year" in dur_str or "سنة" in dur_str:
             m = re.search(r'\d+', dur_str)
             years = int(m.group(0)) if m else 2
             return str(start + relativedelta(years=years))
+        elif "2" in dur_str:
+            return str(start + relativedelta(years=2))
+        elif "1" in dur_str:
+            return str(start + relativedelta(years=1))
         else:
             return str(start + relativedelta(years=2))
     except Exception:
@@ -402,40 +414,44 @@ def parse_structured_contract_text(full_text_or_blocks):
 
     # ── 1. Contract & Visa Header ──
 
-    # Contract Number
+    # Contract Number (e.g. CONTRACT # 2005450415 or CONTRACT No: CR-99887766 or رقم العقد 2005450415)
     data["contract_number"] = extract_field_from_text(
         text,
         [
-            r'(?:رقم\s*عقد\s*خدمات\s*التوسط|رقم\s*عقد\s*التوسط|رقم\s*العقد|رقم\s*الاتفاقية)\s*[:=\-–]?\s*([A-Za-z0-9\-_/]{4,25})',
-            r'(?:contract\s*(?:no|number|id)|agreement\s*(?:no|number))\s*[:=\-–]?\s*([A-Za-z0-9\-_/]{4,25})',
+            r'(?:CONTRACT\s*(?:#|NO\.?|NUMBER|ID|No:|#\s*)|رقم\s*عقد\s*خدمات\s*التوسط|رقم\s*عقد\s*التوسط|رقم\s*العقد|رقم\s*الاتفاقية|agreement\s*(?:no|number))\s*[:=\-–#]?\s*([A-Za-z0-9][A-Za-z0-9\-_/]{3,25})',
+            r'رق[^\s]*\s*ا[^\s]*عقد\s*[:=\-–#]?\s*([A-Za-z0-9][A-Za-z0-9\-_/]{3,25})',
         ]
     )
 
-    # Visa Number
+    # Visa Number (e.g. VISA NUMBER # 1908334046 or رقم التأشيرة 1908334046)
     data["visa_number"] = extract_field_from_text(
         text,
         [
-            r'(?:رقم\s*التأشيرة|رقم\s*التاشيرة|رقم\s*تأشيرة\s*العمل|رقم\s*صادر\s*التأشيرة|رقم\s*الصادر)\s*[:=\-–]?\s*([0-9]{8,15})',
-            r'(?:visa\s*(?:no|number|id)|visa\s*issued\s*no)\s*[:=\-–]?\s*([0-9]{8,15})',
+            r'VISA\s*(?:NUMBER|NO\.?|ID)?\s*#?\s*[:=\-–]?\s*([0-9]{8,15})',
+            r'(?:رقم\s*التأشيرة|رقم\s*التاشيرة|رقم\s*تأشيرة\s*العمل|رقم\s*صادر\s*التأشيرة|رقم\s*الصادر)\s*[:=\-–#]?\s*([0-9]{8,15})',
+            r'رق[^\s]*\s*ا[^\s]*تأشيرة\s*[:=\-–#]?\s*([0-9]{8,15})',
         ]
     )
 
-    # Contract Date
+    # Contract Date (e.g. corresponding to (13/08/2026) or بتاريخ (13/08/2026))
     raw_date = extract_field_from_text(
         text,
         [
-            r'(?:تاريخ\s*إبرام\s*العقد|تاريخ\s*ابرام\s*العقد|تاريخ\s*العقد|تاريخ\s*توقيع\s*العقد|تاريخ\s*الاتفاقية|تاريخ\s*الإصدار|تاريخ\s*الاصدار)\s*[:=\-–]?\s*([0-9]{1,4}[-/.][0-9]{1,2}[-/.][0-9]{1,4})',
-            r'(?:contract\s*date|agreement\s*date|date\s*of\s*agreement|issue\s*date|date)\s*[:=\-–]?\s*([0-9]{1,4}[-/.][0-9]{1,2}[-/.][0-9]{1,4})',
+            r'corresponding\s*to\s*\(?([0-9]{1,2}[-/.][0-9]{1,2}[-/.][0-9]{2,4})\)?',
+            r'بتاريخ\s*\(?([0-9]{1,2}[-/.][0-9]{1,2}[-/.][0-9]{2,4})\)?',
+            r'(?:تاريخ\s*إبرام\s*العقد|تاريخ\s*ابرام\s*العقد|تاريخ\s*العقد|تاريخ\s*توقيع\s*العقد|تاريخ\s*الاتفاقية|تاريخ\s*الإصدار|تاريخ\s*الاصدار)\s*[:=\-–]?\s*\(?([0-9]{1,4}[-/.][0-9]{1,2}[-/.][0-9]{1,4})\)?',
+            r'(?:contract\s*date|agreement\s*date|date\s*of\s*agreement|issue\s*date|date)\s*[:=\-–]?\s*\(?([0-9]{1,4}[-/.][0-9]{1,2}[-/.][0-9]{1,4})\)?',
         ]
     )
     if raw_date:
         data["contract_date"] = normalize_date_string(raw_date)
         data["contract_start_date"] = data["contract_date"]
 
-    # Contract Duration
+    # Contract Duration (e.g. مدة العقد سنتين or 2 Years / 24 Months)
     dur = extract_field_from_text(
         text,
         [
+            r'مدة\s*العقد\s*(سنتين|سنة\s*واحدة|[0-9]+\s*(?:سنة|سنتين|أشهر|شهر|عام|أعوام))',
             r'(?:مدة\s*العقد|مدة\s*الاتفاقية|المدة)\s*[:=\-–]?\s*([0-9]+\s*(?:سنة|سنتين|أشهر|شهر|عام|أعوام|years?|months?)|سنتين|سنة\s*واحدة)',
             r'(?:contract\s*duration|duration|period|contract\s*period)\s*[:=\-–]?\s*([0-9]+\s*(?:years?|months?)|2\s*years|24\s*months)',
         ]
@@ -449,49 +465,86 @@ def parse_structured_contract_text(full_text_or_blocks):
     if data["contract_date"]:
         data["contract_end_date"] = calculate_contract_end_date(data["contract_date"], data["contract_duration"])
 
-    # Monthly Salary / Amount
-    salary_str = extract_field_from_text(
-        text,
-        [
-            r'(?:الراتب\s*الشهري|الراتب|الأجر\s*الشهري|الأجر|أجر\s*العامل|قيمة\s*العقد)\s*[:=\-–]?\s*([0-9,.]+\s*(?:ريال|SAR|SR|USD|ETB)?)',
-            r'(?:monthly\s*salary|salary|basic\s*salary|wage|monthly\s*wage|amount)\s*[:=\-–]?\s*([0-9,.]+\s*(?:SAR|SR|USD|ETB|ريال)?)',
-        ]
-    )
-    if salary_str:
-        data["monthly_salary"] = salary_str
-        num_m = re.search(r'([0-9]+(?:,[0-9]+)*(?:\.[0-9]+)?)', salary_str)
-        if num_m:
-            try:
-                data["amount_detail"] = float(num_m.group(1).replace(",", ""))
-            except Exception:
-                pass
+    # Monthly Salary / Amount (e.g. fixed monthly wage of 1000 (Saudi Riyals) or أجر شهري ثابت قدره 1000)
+    salary_match = re.search(r'fixed\s*monthly\s*wage\s*of\s*([0-9,.]+)\s*\(([^)]+)\)', text, re.IGNORECASE)
+    if not salary_match:
+        salary_match = re.search(r'أجر\s*شهري\s*ثابت\s*قدره\s*([0-9,.]+)\s*\(([^)]+)\)', text, re.IGNORECASE)
 
-    # Profession
+    if salary_match:
+        data["amount_detail"] = float(salary_match.group(1).replace(",", ""))
+        data["monthly_salary"] = f"{salary_match.group(1)} {salary_match.group(2)}"
+    else:
+        salary_str = extract_field_from_text(
+            text,
+            [
+                r'(?:الراتب\s*الشهري|الراتب|الأجر\s*الشهري|الأجر|أجر\s*العامل|قيمة\s*العقد)\s*[:=\-–]?\s*([0-9,.]+\s*(?:ريال|SAR|SR|USD|ETB)?)',
+                r'(?:monthly\s*salary|salary|basic\s*salary|wage|monthly\s*wage|amount)\s*[:=\-–]?\s*([0-9,.]+\s*(?:SAR|SR|USD|ETB|ريال)?)',
+            ]
+        )
+        if salary_str:
+            data["monthly_salary"] = salary_str
+            num_m = re.search(r'([0-9]+(?:,[0-9]+)*(?:\.[0-9]+)?)', salary_str)
+            if num_m:
+                try:
+                    data["amount_detail"] = float(num_m.group(1).replace(",", ""))
+                except Exception:
+                    pass
+
+    # Profession (e.g. Position: House Maid or الوظيفة: عاملة منزلية or hired as House Maid)
     data["profession"] = extract_field_from_text(
         text,
         [
-            r'(?:المهنة|الوظيفة|المسمى\s*الوظيفي)\s*[:=\-–]?\s*([^\r\n]+)',
-            r'(?:profession|job|occupation|position)\s*[:=\-–]?\s*([^\r\n]+)',
+            r'(?:Position|الوظيفة)\s*[:=\-–]?\s*([^\r\n]+)',
+            r'hired\s*as\s*([A-Za-z\s]+)',
+            r'لعمل\s*(عاملة\s*منزلية|سائق\s*خاص|[^\r\n]+)',
+            r'(?:المهنة|المسمى\s*الوظيفي)\s*[:=\-–]?\s*([^\r\n]+)',
+            r'(?:profession|job|occupation)\s*[:=\-–]?\s*([^\r\n]+)',
         ]
     )
+
+    # Nationality
+    nat = extract_field_from_text(
+        text,
+        [
+            r'CONTRACT\s*FOR\s*([A-Z]+)\s*DOMESTIC\s*WORKERS',
+            r'من\s*(اثيوبيا|إثيوبيا|[^\s]+)\s*المغادرة\s*للمملكة',
+            r'(?:الجنسية|جنسية\s*العامل)\s*[:=\-–]?\s*([^\r\n]+)',
+            r'(?:nationality)\s*[:=\-–]?\s*([^\r\n]+)',
+        ]
+    )
+    if nat:
+        data["nationality"] = nat.title() if nat.isupper() else nat
 
     # ── 2. Employer (First Party / Sponsor) ──
     emp_text = sec["employer"] or text
 
-    data["employer_name"] = extract_field_from_text(
+    # Handle multi-line Name in Employer section (e.g. Name: ABDULLAH AMER MUGHABBIRI \n ALBARIQI)
+    emp_name = None
+    m_ename = re.search(
+        r'(?:Name|الاسم|اسم\s*صاحب\s*العمل|اسم\s*الكفيل)\s*[:=\-–]?\s*([^\r\n]+(?:\n(?!(?:Name|الاسم|National|رقم|Address|العنوان|Contact|Mobile|Telephone|City|المدينة|Street|الشارع|Position))[^\r\n]+)?)',
         emp_text,
-        [
-            r'(?:اسم\s*صاحب\s*العمل|اسم\s*الكفيل|اسم\s*المستقدم)\s*[:=\-–]?\s*([^\r\n]+)',
-            r'(?:employer\s*name|sponsor\s*name|first\s*party\s*name)\s*[:=\-–]?\s*([^\r\n]+)',
-            r'اسم\s*العميل\s*[:=\-–]?\s*([^\r\n]+)',
-            r'الاسم\s*[:=\-–]?\s*([^\r\n]+)',
-            r'Name\s*[:=\-–]?\s*([^\r\n]+)',
-        ]
+        re.IGNORECASE
     )
+    if m_ename:
+        raw_n = m_ename.group(1).replace("\n", " ").strip()
+        emp_name = clean_extracted_value(raw_n)
+
+    if not emp_name:
+        emp_name = extract_field_from_text(
+            emp_text,
+            [
+                r'(?:اسم\s*صاحب\s*العمل|اسم\s*الكفيل|اسم\s*المستقدم)\s*[:=\-–]?\s*([^\r\n]+)',
+                r'(?:employer\s*name|sponsor\s*name|first\s*party\s*name)\s*[:=\-–]?\s*([^\r\n]+)',
+                r'Name\s*[:=\-–]?\s*([^\r\n]+)',
+                r'الاسم\s*[:=\-–]?\s*([^\r\n]+)',
+            ]
+        )
+    data["employer_name"] = emp_name
 
     data["employer_id"] = extract_field_from_text(
         emp_text,
         [
+            r'(?:National\s*ID\s*Number|رقم\s*الهوية\s*الوطنية)\s*[:=\-–]?\s*([0-9]{9,15})',
             r'(?:رقم\s*الهوية\s*الوطنية|رقم\s*الهوية|الهوية\s*الوطنية|السجل\s*المدني|رقم\s*الإقامة|رقم\s*بطاقة\s*الأحوال|رقم\s*هوية\s*صاحب\s*العمل)\s*[:=\-–]?\s*([0-9]{9,15})',
             r'(?:national\s*id(?:\s*number)?|national\s*id\s*no|id\s*number|id\s*no|iqama\s*(?:no|number))\s*[:=\-–]?\s*([0-9]{9,15})',
         ]
@@ -500,7 +553,7 @@ def parse_structured_contract_text(full_text_or_blocks):
     data["employer_mobile"] = extract_field_from_text(
         emp_text,
         [
-            r'(?:رقم\s*الجوال|الجوال|رقم\s*جوال\s*صاحب\s*العمل)\s*[:=\-–]?\s*(\+?[0-9\s\-]{8,20})',
+            r'(?:Mobile|رقم\s*الجوال|الجوال)\s*[:=\-–]?\s*(\+?[0-9\s\-]{8,20})',
             r'(?:mobile\s*(?:no|number)?|cell\s*(?:no|number)?)\s*[:=\-–]?\s*(\+?[0-9\s\-]{8,20})',
         ]
     )
@@ -508,7 +561,7 @@ def parse_structured_contract_text(full_text_or_blocks):
     data["employer_telephone"] = extract_field_from_text(
         emp_text,
         [
-            r'(?:رقم\s*الهاتف|الهاتف|هاتف\s*صاحب\s*العمل)\s*[:=\-–]?\s*(\+?[0-9\s\-]{7,20})',
+            r'(?:Telephone|رقم\s*الهاتف|الهاتف)\s*[:=\-–]?\s*(\+?[0-9\s\-]{7,20})',
             r'(?:telephone\s*(?:no|number)?|phone\s*(?:no|number)?)\s*[:=\-–]?\s*(\+?[0-9\s\-]{7,20})',
         ]
     )
@@ -516,15 +569,16 @@ def parse_structured_contract_text(full_text_or_blocks):
     data["employer_city"] = extract_field_from_text(
         emp_text,
         [
-            r'(?:المدينة|مدينة\s*الإقامة|مدينة\s*صاحب\s*العمل)\s*[:=\-–]?\s*([^\r\n]+)',
-            r'(?:city|residence\s*city)\s*[:=\-–]?\s*([^\r\n]+)',
+            r'(?:City|المدينة)\s*[:=\-–]?\s*([^\r\n]+)',
+            r'(?:city|residence\s*city|مدينة\s*الإقامة|مدينة\s*صاحب\s*العمل)\s*[:=\-–]?\s*([^\r\n]+)',
         ]
     )
 
     data["employer_street"] = extract_field_from_text(
         emp_text,
         [
-            r'(?:الحي\s*/\s*الشارع|الحي\s*والشارع|الحي|الشارع|العنوان)\s*[:=\-–]?\s*([^\r\n]+)',
+            r'(?:Street|الشارع)\s*[:=\-–]?\s*([^\r\n]+)',
+            r'(?:الحي\s*/\s*الشارع|الحي\s*والشارع|الحي|العنوان)\s*[:=\-–]?\s*([^\r\n]+)',
             r'(?:street|district|address)\s*[:=\-–]?\s*([^\r\n]+)',
         ]
     )
@@ -532,20 +586,31 @@ def parse_structured_contract_text(full_text_or_blocks):
     # ── 3. Saudi Recruiting Agency (Second Party / Contractor) ──
     rec_text = sec["recruiting_agency"] or text
 
-    data["recruiting_agency_name"] = extract_field_from_text(
+    # Handle multi-line Name in Saudi Recruiting Agency
+    rec_name = None
+    m_rname = re.search(
+        r'(?:Name|الاسم|اسم\s*مكتب\s*الاستقدام|اسم\s*الشركة)\s*[:=\-–]?\s*([^\r\n]+(?:\n(?!(?:Name|الاسم|License|رقم|Address|العنوان|Contact|Telephone|Phone|City|المدينة|Street|الشارع|Email|البريد))[^\r\n]+)?)',
         rec_text,
-        [
-            r'(?:اسم\s*مكتب\s*الاستقدام|اسم\s*المكتب|اسم\s*الشركة|اسم\s*جهة\s*الاستقدام|جهة\s*الاستقدام\s*المرخصة)\s*[:=\-–]?\s*([^\r\n]+)',
-            r'(?:recruiting\s*agency\s*name|recruitment\s*office\s*name|office\s*name|contractor\s*name|contractor|agency\s*name|company\s*name)\s*[:=\-–]?\s*([^\r\n]+)',
-            r'Office\s*Name\s*[:=\-–]?\s*([^\r\n]+)',
-            r'Agency\s*Name\s*[:=\-–]?\s*([^\r\n]+)',
-        ]
+        re.IGNORECASE
     )
+    if m_rname:
+        raw_rn = m_rname.group(1).replace("\n", " ").strip()
+        rec_name = clean_extracted_value(raw_rn)
+
+    if not rec_name:
+        rec_name = extract_field_from_text(
+            rec_text,
+            [
+                r'(?:Name|الاسم|اسم\s*مكتب\s*الاستقدام|اسم\s*المكتب|اسم\s*الشركة|اسم\s*جهة\s*الاستقدام|جهة\s*الاستقدام\s*المرخصة)\s*[:=\-–]?\s*([^\r\n]+)',
+                r'(?:recruiting\s*agency\s*name|recruitment\s*office\s*name|office\s*name|contractor\s*name|agency\s*name|company\s*name)\s*[:=\-–]?\s*([^\r\n]+)',
+            ]
+        )
+    data["recruiting_agency_name"] = rec_name
 
     data["recruiting_agency_license"] = extract_field_from_text(
         rec_text,
         [
-            r'(?:رقم\s*الترخيص|ترخيص\s*رقم|رقم\s*ترخيص\s*الاستقدام|السجل\s*التجاري)\s*[:=\-–]?\s*([A-Za-z0-9\-_/]{2,25})',
+            r'(?:License\s*no|رقم\s*الترخيص|ترخيص\s*رقم)\s*[:=\-–]?\s*([A-Za-z0-9\-_/]{2,25})',
             r'(?:license\s*(?:no|number)|license\s*#|commercial\s*reg)\s*[:=\-–]?\s*([A-Za-z0-9\-_/]{2,25})',
         ]
     )
@@ -553,7 +618,7 @@ def parse_structured_contract_text(full_text_or_blocks):
     data["recruiting_agency_telephone"] = extract_field_from_text(
         rec_text,
         [
-            r'(?:رقم\s*الهاتف|الهاتف|رقم\s*الاتصال|الجوال)\s*[:=\-–]?\s*(\+?[0-9\s\-]{7,20})',
+            r'(?:Telephone|رقم\s*الهاتف|الهاتف|رقم\s*الاتصال|الجوال)\s*[:=\-–]?\s*(\+?[0-9\s\-]{7,20})',
             r'(?:telephone\s*(?:no|number)?|phone\s*(?:no|number)?|contact\s*no)\s*[:=\-–]?\s*(\+?[0-9\s\-]{7,20})',
         ]
     )
@@ -561,24 +626,22 @@ def parse_structured_contract_text(full_text_or_blocks):
     data["recruiting_agency_street"] = extract_field_from_text(
         rec_text,
         [
-            r'(?:الشارع|الحي|العنوان)\s*[:=\-–]?\s*([^\r\n]+)',
-            r'(?:street|address)\s*[:=\-–]?\s*([^\r\n]+)',
+            r'(?:Street|الشارع)\s*[:=\-–]?\s*([^\r\n]+)',
+            r'(?:الحي|العنوان|address)\s*[:=\-–]?\s*([^\r\n]+)',
         ]
     )
 
     data["recruiting_agency_city"] = extract_field_from_text(
         rec_text,
         [
-            r'(?:المدينة)\s*[:=\-–]?\s*([^\r\n]+)',
-            r'(?:city)\s*[:=\-–]?\s*([^\r\n]+)',
+            r'(?:City|المدينة)\s*[:=\-–]?\s*([^\r\n]+)',
         ]
     )
 
     data["recruiting_agency_email"] = extract_field_from_text(
         rec_text,
         [
-            r'(?:البريد\s*الإلكتروني|البريد\s*الالكتروني|الإيميل)\s*[:=\-–]?\s*([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)',
-            r'(?:email|e-mail)\s*[:=\-–]?\s*([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)',
+            r'(?:Email|البريد\s*الإلكتروني|البريد\s*الالكتروني|الإيميل)\s*[:=\-–]?\s*([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)',
             r'([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)',
         ]
     )
@@ -586,19 +649,31 @@ def parse_structured_contract_text(full_text_or_blocks):
     # ── 4. Origin Agency (Third Party / Ethiopian Agency) ──
     orig_text = sec["origin_agency"] or text
 
-    data["origin_agency_name"] = extract_field_from_text(
+    # Handle multi-line Origin Agency Name (e.g. Name: ANWAR SULTAN FOREIGN \n EMPLOYMENT AGENT)
+    orig_name = None
+    m_oname = re.search(
+        r'(?:Name|الاسم|اسم\s*الوكالة)\s*[:=\-–]?\s*([^\r\n]+(?:\n(?!(?:Name|الاسم|License|رقم|Address|العنوان|Contact|Phone|Telephone|City|المدينة|Street|الشارع|Email|البريد))[^\r\n]+)?)',
         orig_text,
-        [
-            r'(?:اسم\s*الوكالة\s*بالخارج|اسم\s*الوكالة|اسم\s*المكتب\s*الأجنبي|وكالة\s*الدولة\s*الأجنبية)\s*[:=\-–]?\s*([^\r\n]+)',
-            r'(?:foreign\s*agency\s*name|her\s*country\s*agency\s*name|origin\s*agency\s*name|foreign\s*agency|foreign\s*employment\s*agent)\s*[:=\-–]?\s*([^\r\n]+)',
-            r'Agency\s*Name\s*[:=\-–]?\s*([^\r\n]+)',
-        ]
+        re.IGNORECASE
     )
+    if m_oname:
+        raw_on = m_oname.group(1).replace("\n", " ").strip()
+        orig_name = clean_extracted_value(raw_on)
+
+    if not orig_name:
+        orig_name = extract_field_from_text(
+            orig_text,
+            [
+                r'(?:Name|الاسم|اسم\s*الوكالة\s*بالخارج|اسم\s*الوكالة|اسم\s*المكتب\s*الأجنبي|وكالة\s*الدولة\s*الأجنبية)\s*[:=\-–]?\s*([^\r\n]+)',
+                r'(?:foreign\s*agency\s*name|her\s*country\s*agency\s*name|origin\s*agency\s*name|foreign\s*agency|foreign\s*employment\s*agent)\s*[:=\-–]?\s*([^\r\n]+)',
+            ]
+        )
+    data["origin_agency_name"] = orig_name
 
     data["origin_agency_license"] = extract_field_from_text(
         orig_text,
         [
-            r'(?:رقم\s*الترخيص|ترخيص\s*رقم|رقم\s*ترخيص\s*الوكالة)\s*[:=\-–]?\s*([A-Za-z0-9\-_/]{2,25})',
+            r'(?:License\s*No|رقم\s*الترخيص|ترخيص\s*رقم)\s*[:=\-–]?\s*([A-Za-z0-9\-_/]{2,25})',
             r'(?:license\s*(?:no|number)|license\s*#)\s*[:=\-–]?\s*([A-Za-z0-9\-_/]{2,25})',
         ]
     )
@@ -606,7 +681,7 @@ def parse_structured_contract_text(full_text_or_blocks):
     data["origin_agency_phone"] = extract_field_from_text(
         orig_text,
         [
-            r'(?:رقم\s*الاتصال|الهاتف|رقم\s*الهاتف|الجوال)\s*[:=\-–]?\s*(\+?[0-9\s\-]{7,20})',
+            r'(?:Contact\s*No|رقم\s*الاتصال|الهاتف|رقم\s*الهاتف|الجوال)\s*[:=\-–]?\s*(\+?[0-9\s\-]{7,20})',
             r'(?:contact\s*(?:no|number)?|phone\s*(?:no|number)?|telephone)\s*[:=\-–]?\s*(\+?[0-9\s\-]{7,20})',
         ]
     )
@@ -614,24 +689,23 @@ def parse_structured_contract_text(full_text_or_blocks):
     data["origin_agency_street"] = extract_field_from_text(
         orig_text,
         [
-            r'(?:الشارع|العنوان|الحي)\s*[:=\-–]?\s*([^\r\n]+)',
-            r'(?:street|address)\s*[:=\-–]?\s*([^\r\n]+)',
+            r'(?:Street|الشارع)\s*[:=\-–]?\s*([^\r\n]+)',
+            r'(?:العنوان|الحي|address)\s*[:=\-–]?\s*([^\r\n]+)',
         ]
     )
 
     data["origin_agency_city"] = extract_field_from_text(
         orig_text,
         [
-            r'(?:المدينة)\s*[:=\-–]?\s*([^\r\n]+)',
-            r'(?:city)\s*[:=\-–]?\s*([^\r\n]+)',
+            r'(?:City|المدينة)\s*[:=\-–]?\s*([^\r\n]+)',
         ]
     )
 
     data["origin_agency_email"] = extract_field_from_text(
         orig_text,
         [
-            r'(?:البريد\s*الإلكتروني|البريد\s*الالكتروني|الإيميل)\s*[:=\-–]?\s*([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)',
-            r'(?:email|e-mail)\s*[:=\-–]?\s*([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)',
+            r'(?:Email|البريد\s*الإلكتروني|البريد\s*الالكتروني|الإيميل)\s*[:=\-–]?\s*([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)',
+            r'([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)',
         ]
     )
 
@@ -641,29 +715,19 @@ def parse_structured_contract_text(full_text_or_blocks):
     data["applicant_name"] = extract_field_from_text(
         work_text,
         [
-            r'(?:اسم\s*العاملة\s*المنزلية|اسم\s*العامل\s*المنزلي|اسم\s*العاملة|اسم\s*العامل|اسم\s*المستقدمة|اسم\s*المستقدم)\s*[:=\-–]?\s*([^\r\n]+)',
+            r'(?:Name|الاسم|اسم\s*العاملة\s*المنزلية|اسم\s*العامل\s*المنزلي|اسم\s*العاملة|اسم\s*العامل|اسم\s*المستقدمة|اسم\s*المستقدم)\s*[:=\-–]?\s*([^\r\n]+)',
             r'(?:worker\s*name|domestic\s*worker\s*name|applicant\s*name|name\s*of\s*worker|name\s*of\s*applicant)\s*[:=\-–]?\s*([^\r\n]+)',
             r'Worker\s*Name\s*[:=\-–]?\s*([^\r\n]+)',
             r'Applicant\s*Name\s*[:=\-–]?\s*([^\r\n]+)',
             r'Full\s*Name\s*[:=\-–]?\s*([^\r\n]+)',
-            r'الاسم\s*[:=\-–]?\s*([^\r\n]+)',
-            r'Name\s*[:=\-–]?\s*([^\r\n]+)',
         ]
     )
 
     data["passport_number"] = extract_field_from_text(
-        work_text,
+        work_text or text,
         [
-            r'(?:رقم\s*جواز\s*السفر|رقم\s*الجواز|جواز\s*السفر)\s*[:=\-–]?\s*([A-Za-z0-9]{6,12})',
+            r'(?:Passport\s*No|رقم\s*جواز\s*السفر|رقم\s*الجواز|جواز\s*السفر)\s*[:=\-–]?\s*([A-Za-z0-9]{6,12})',
             r'(?:passport\s*(?:no|number)|passport\s*#)\s*[:=\-–]?\s*([A-Za-z0-9]{6,12})',
-        ]
-    )
-
-    data["nationality"] = extract_field_from_text(
-        work_text,
-        [
-            r'(?:الجنسية|جنسية\s*العامل)\s*[:=\-–]?\s*([^\r\n]+)',
-            r'(?:nationality)\s*[:=\-–]?\s*([^\r\n]+)',
         ]
     )
 
