@@ -309,13 +309,11 @@
    "label": "Under Her Country Recruitment Agency (Origin / Ethiopian Agency)"
   },
   {
-   "default": "ANWAR SULTAN FOREIGN EMPLOYMENT AGENT",
    "fieldname": "agency",
    "fieldtype": "Data",
    "label": "Agency Name"
   },
   {
-   "default": "3226",
    "fieldname": "origin_agency_license",
    "fieldtype": "Data",
    "label": "License No"
@@ -330,13 +328,11 @@
    "fieldtype": "Column Break"
   },
   {
-   "default": "Addis Ababa",
    "fieldname": "origin_agency_street",
    "fieldtype": "Data",
    "label": "Street"
   },
   {
-   "default": "Addis Ababa",
    "fieldname": "origin_agency_city",
    "fieldtype": "Data",
    "label": "City"

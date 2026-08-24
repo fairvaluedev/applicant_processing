@@ -3,162 +3,333 @@
 
 import os
 import re
+import unicodedata
 import datetime
 import frappe
 from frappe.utils import getdate, today
 
+
 # ─────────────────────────────────────────────────────────────────────────────
-# 1. Multi-Line Text Structurizer Engine
+# 1. Unicode & Arabic Normalization Helpers
+# ─────────────────────────────────────────────────────────────────────────────
+ARABIC_PRESENTATION_MAP = {
+    '\ufe80': '\u0621', '\ufe81': '\u0622', '\ufe82': '\u0622', '\ufe83': '\u0623',
+    '\ufe84': '\u0623', '\ufe85': '\u0624', '\ufe86': '\u0624', '\ufe87': '\u0625',
+    '\ufe88': '\u0625', '\ufe89': '\u0626', '\ufe8a': '\u0626', '\ufe8b': '\u0626',
+    '\ufe8c': '\u0626', '\ufe8d': '\u0627', '\ufe8e': '\u0627', '\ufe8f': '\u0628',
+    '\ufe90': '\u0628', '\ufe91': '\u0628', '\ufe92': '\u0628', '\ufe93': '\u0629',
+    '\ufe94': '\u0629', '\ufe95': '\u062a', '\ufe96': '\u062a', '\ufe97': '\u062a',
+    '\ufe98': '\u062a', '\ufe99': '\u062b', '\ufe9a': '\u062b', '\ufe9b': '\u062b',
+    '\ufe9c': '\u062b', '\ufe9d': '\u062c', '\ufe9e': '\u062c', '\ufe9f': '\u062c',
+    '\ufea0': '\u062c', '\ufea1': '\u062d', '\ufea2': '\u062d', '\ufea3': '\u062d',
+    '\ufea4': '\u062d', '\ufea5': '\u062e', '\ufea6': '\u062e', '\ufea7': '\u062e',
+    '\ufea8': '\u062e', '\ufea9': '\u062f', '\ufeaa': '\u062f', '\ufeab': '\u0630',
+    '\ufeac': '\u0630', '\ufead': '\u0631', '\ufeae': '\u0631', '\ufeaf': '\u0632',
+    '\ufeb0': '\u0632', '\ufeb1': '\u0633', '\ufeb2': '\u0633', '\ufeb3': '\u0633',
+    '\ufeb4': '\u0633', '\ufeb5': '\u0634', '\ufeb6': '\u0634', '\ufeb7': '\u0634',
+    '\ufeb8': '\u0634', '\ufeb9': '\u0635', '\ufeba': '\u0635', '\ufebb': '\u0635',
+    '\ufebc': '\u0635', '\ufebd': '\u0636', '\ufebe': '\u0636', '\ufebf': '\u0636',
+    '\ufec0': '\u0636', '\ufec1': '\u0637', '\ufec2': '\u0637', '\ufec3': '\u0637',
+    '\ufec4': '\u0637', '\ufec5': '\u0638', '\ufec6': '\u0638', '\ufec7': '\u0638',
+    '\ufec8': '\u0638', '\ufec9': '\u0639', '\ufeca': '\u0639', '\ufecb': '\u0639',
+    '\ufecc': '\u0639', '\ufecd': '\u063a', '\ufece': '\u063a', '\ufecf': '\u063a',
+    '\ufed0': '\u063a', '\ufed1': '\u0641', '\ufed2': '\u0641', '\ufed3': '\u0641',
+    '\ufed4': '\u0641', '\ufed5': '\u0642', '\ufed6': '\u0642', '\ufed7': '\u0642',
+    '\ufed8': '\u0642', '\ufed9': '\u0643', '\ufeda': '\u0643', '\ufedb': '\u0643',
+    '\ufedc': '\u0643', '\ufedd': '\u0644', '\ufede': '\u0644', '\ufedf': '\u0644',
+    '\ufee0': '\u0644', '\ufee1': '\u0645', '\ufee2': '\u0645', '\ufee3': '\u0645',
+    '\ufee4': '\u0645', '\ufee5': '\u0646', '\ufee6': '\u0646', '\ufee7': '\u0646',
+    '\ufee8': '\u0646', '\ufee9': '\u0647', '\ufeea': '\u0647', '\ufeeb': '\u0647',
+    '\ufeec': '\u0647', '\ufeed': '\u0648', '\ufeee': '\u0648', '\ufeef': '\u0649',
+    '\ufef0': '\u0649', '\ufef1': '\u064a', '\ufef2': '\u064a', '\ufef3': '\u064a',
+    '\ufef4': '\u064a', '\ufef5': '\u0644\u0622', '\ufef6': '\u0644\u0622',
+    '\ufef7': '\u0644\u0623', '\ufef8': '\u0644\u0623', '\ufef9': '\u0644\u0625',
+    '\ufefa': '\u0644\u0625', '\ufefb': '\u0644\u0627', '\ufefc': '\u0644\u0627',
+}
+
+def normalize_text(text):
+    """
+    Cleans raw text extracted from PDF:
+    - Normalizes Unicode (NFKC)
+    - Replaces Arabic presentation forms with base Arabic
+    - Strips bidi / direction markers
+    - Cleans whitespace
+    """
+    if not text:
+        return ""
+
+    chars = []
+    for ch in str(text):
+        chars.append(ARABIC_PRESENTATION_MAP.get(ch, ch))
+    normalized = "".join(chars)
+
+    normalized = unicodedata.normalize("NFKC", normalized)
+    normalized = re.sub(r'[\u200e\u200f\u202a-\u202e\u2066-\u2069\ufeff\u200b\u00ad]', '', normalized)
+    normalized = re.sub(r'[\xa0\u2000-\u200a\u202f\u205f\u3000]', ' ', normalized)
+    return normalized
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 2. Multi-Line Text Structurizer Engine
 # ─────────────────────────────────────────────────────────────────────────────
 class ContractTextStructurizer:
     """
-    Transforms fragmented PDF text blocks and multi-line strings into unified semantic
-    paragraphs and key-value entries. Prevents wrapped lines or multi-line values
-    from being split into disconnected tokens.
+    Parses and organizes raw PDF text blocks, multi-line strings, and tables into
+    structured semantic lines, section blocks, and key-value maps.
+    Works seamlessly with Arabic, English, and bilingual documents.
     """
 
     def __init__(self, raw_blocks_or_text):
         self.raw_input = raw_blocks_or_text
-        self.structured_lines = []
+        self.clean_lines = []
         self.unified_text = ""
-        self.kv_pairs = {}
+        self.sections = {
+            "header": "",
+            "employer": "",
+            "recruiting_agency": "",
+            "origin_agency": "",
+            "worker": "",
+            "financial": "",
+        }
         self._process()
 
     def _process(self):
+        raw_lines = []
         if isinstance(self.raw_input, list):
-            # PyMuPDF blocks format: [(x0, y0, x1, y1, "text", block_no, block_type), ...]
-            text_blocks = []
             for b in self.raw_input:
-                if len(b) >= 5 and isinstance(b[4], str):
-                    text_blocks.append(b[4])
+                if isinstance(b, (list, tuple)) and len(b) >= 5 and isinstance(b[4], str):
+                    raw_lines.extend(b[4].splitlines())
                 elif isinstance(b, str):
-                    text_blocks.append(b)
-            raw_text = "\n\n".join(text_blocks)
+                    raw_lines.extend(b.splitlines())
         else:
-            raw_text = str(self.raw_input or "")
+            raw_lines = str(self.raw_input or "").splitlines()
 
-        # Step 1: De-hyphenate broken words across line boundaries
-        # e.g., "em-\nployment" -> "employment"
-        clean = re.sub(r'(\w+)-\s*\n\s*(\w+)', r'\1\2', raw_text)
+        clean_lines = []
+        for line in raw_lines:
+            cleaned = normalize_text(line).strip()
+            if cleaned:
+                clean_lines.append(cleaned)
 
-        # Step 2: Normalize multiple whitespace but preserve distinct semantic breaks
-        lines = [line.strip() for line in clean.splitlines() if line.strip()]
+        self.clean_lines = clean_lines
+        self.unified_text = "\n".join(clean_lines)
+        self._partition_sections()
 
-        # Step 3: Unify wrapped lines into single logical statements
-        merged_lines = []
-        buffer_line = ""
+    def _partition_sections(self):
+        """Splits the full text into semantic contract sections."""
+        current_section = "header"
+        section_lines = {k: [] for k in self.sections}
 
-        # Key indicators that signal the START of a new section/key rather than continuation
-        header_key_patterns = [
-            r'^(?:contract\s*(?:no|number)|رقم\s*العقد)',
-            r'^(?:visa\s*(?:no|number)|رقم\s*التأشيرة)',
-            r'^(?:employer|first\s*party|صاحب\s*العمل|الطرف\s*الأول)',
-            r'^(?:recruiting\s*agency|recruitment\s*office|مكتب\s*الاستقدام|الطرف\s*الثاني)',
-            r'^(?:her\s*country|foreign\s*agency|وكالة\s*الدولة\s*الأجنبية|وكالة\s*الاستقدام\s*بالخارج)',
-            r'^(?:name|الاسم|اسم)',
-            r'^(?:national\s*id|id\s*number|رقم\s*الهوية|السجل\s*المدني)',
-            r'^(?:license\s*(?:no|number)|رقم\s*الترخيص)',
-            r'^(?:street|الشارع)',
-            r'^(?:city|المدينة)',
-            r'^(?:mobile|الجوال)',
-            r'^(?:telephone|phone|الهاتف|هاتف)',
-            r'^(?:email|البريد\s*الإلكتروني)',
-            r'^(?:contact\s*no|رقم\s*الاتصال)',
-            r'^(?:salary|wage|amount|الراتب|الأجر)',
-            r'^(?:duration|period|مدة\s*العقد)',
-            r'^(?:date|تاريخ\s*العقد)',
-            r'^(?:profession|job|المهنة)',
-            r'^(?:passport\s*(?:no|number)|رقم\s*الجواز)',
-            r'^(?:worker|applicant|العامل|العاملة)',
-        ]
-        combined_key_regex = re.compile("|".join(header_key_patterns), re.IGNORECASE)
+        for line in self.clean_lines:
+            lower = line.lower()
 
-        for line in lines:
-            if not buffer_line:
-                buffer_line = line
-                continue
+            if any(k in lower for k in [
+                "الطرف الأول", "صاحب العمل", "بيانات صاحب العمل", "الكفيل", "المستقدم",
+                "first party", "employer details", "employer information", "first party (employer)"
+            ]) and not any(k in lower for k in ["اسم صاحب العمل", "هاتف صاحب العمل", "رقم هوية"]):
+                current_section = "employer"
+            elif any(k in lower for k in [
+                "الطرف الثاني", "مكتب الاستقدام", "شركة الاستقدام", "جهة الاستقدام المرخصة",
+                "second party", "recruiting agency", "recruitment office", "recruitment company", "contractor"
+            ]) and not any(k in lower for k in ["اسم المكتب", "هاتف المكتب", "ترخيص", "رقم ترخيص"]):
+                current_section = "recruiting_agency"
+            elif any(k in lower for k in [
+                "الطرف الثالث", "وكالة الاستقدام بالخارج", "وكالة الدولة الأجنبية", "الوكالة بالخارج", "مكتب الارسال",
+                "third party", "her country agency", "foreign agency", "foreign employment agent", "origin agency"
+            ]) and not any(k in lower for k in ["اسم الوكالة", "هاتف الوكالة", "ترخيص"]):
+                current_section = "origin_agency"
+            elif any(k in lower for k in [
+                "بيانات العامل", "بيانات العمالة", "العامل المنزلي", "العاملة المنزلية", "المستقدمة",
+                "domestic worker", "worker details", "applicant details", "details of applicant"
+            ]) and not any(k in lower for k in ["اسم العامل", "مهنة العامل", "جواز"]):
+                current_section = "worker"
+            elif any(k in lower for k in ["الالتزامات المالية", "الأجور", "financial obligations"]):
+                current_section = "financial"
 
-            # Check if this new line is a new key or a continuation of previous line
-            is_new_key = bool(combined_key_regex.search(line))
-            
-            # Check if previous line ended with a terminal punctuation (. or :)
-            prev_has_colon = buffer_line.endswith(":") or ":" in buffer_line[-15:]
-            prev_ended_period = buffer_line.endswith(".")
+            section_lines[current_section].append(line)
 
-            if is_new_key and (prev_has_colon or prev_ended_period or "\t" in line or ":" in line):
-                merged_lines.append(buffer_line)
-                buffer_line = line
-            else:
-                # Merge continuation with single space
-                # If current line starts with ':' (e.g. key was on prev line and colon on this line)
-                if line.startswith(":"):
-                    buffer_line += line
-                else:
-                    buffer_line += " " + line
-
-        if buffer_line:
-            merged_lines.append(buffer_line)
-
-        self.structured_lines = merged_lines
-        self.unified_text = "\n".join(merged_lines)
+        for k in self.sections:
+            self.sections[k] = "\n".join(section_lines[k])
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 2. PyMuPDF Extraction & Document Parser
+# 3. PyMuPDF Extraction & Document Parser
 # ─────────────────────────────────────────────────────────────────────────────
 def extract_text_with_pymupdf(file_path):
     """
-    Extracts text blocks and structural dictionary from PDF using PyMuPDF (fitz).
-    If fitz is unavailable or file is image, falls back to OCR.
+    Extracts text blocks from PDF using PyMuPDF (fitz/pymupdf).
+    Sorts blocks in reading order (top-to-bottom, left-to-right).
     """
-    if not os.path.exists(file_path):
+    if not file_path or not os.path.exists(file_path):
         return []
 
     try:
-        import fitz
+        try:
+            import pymupdf as fitz
+        except ImportError:
+            import fitz
+
         doc = fitz.open(file_path)
         blocks = []
         for page_num in range(len(doc)):
             page = doc[page_num]
-            # Extract blocks: (x0, y0, x1, y1, text, block_no, block_type)
             page_blocks = page.get_text("blocks")
-            # Sort top to bottom, left to right
-            sorted_blocks = sorted(page_blocks, key=lambda b: (b[1], b[0]))
+            sorted_blocks = sorted(page_blocks, key=lambda b: (round(b[1] / 10) * 10, b[0]))
             for b in sorted_blocks:
                 if len(b) >= 5 and b[4].strip():
                     blocks.append(b[4].strip())
         return blocks
-    except ImportError:
-        frappe.log_error("PyMuPDF (fitz) is not installed. Using raw file reading fallback.", "Contract Parser")
     except Exception as e:
         frappe.log_error(f"PyMuPDF error reading {file_path}: {e}", "Contract Parser")
 
-    # Fallback to plain text search if file is text/scanned
     return []
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 3. Contract Schema & Field Extraction Logic
+# 4. Helper Extraction Utilities
 # ─────────────────────────────────────────────────────────────────────────────
+GENERIC_TITLES = {
+    "صاحب العمل", "الطرف الأول", "مكتب الاستقدام", "الطرف الثاني", "شركة الاستقدام",
+    "الطرف الثالث", "وكالة الاستقدام بالخارج", "العامل", "العاملة", "العامل المنزلي",
+    "بيانات العامل", "first party", "second party", "third party", "employer",
+    "recruiting agency", "recruitment office", "foreign agency", "domestic worker"
+}
+
+def clean_extracted_value(val):
+    """Cleans an extracted field value: removes colon prefixes, bounding quotes, extra spaces, generic headers, and bilingual label remnants."""
+    if val is None:
+        return None
+    val_str = str(val).strip()
+
+    # If bilingual label remnant like " / اسم العاملة: Meseret Hailemariam Desta" or "ة: Meseret"
+    if ":" in val_str:
+        prefix, suffix = val_str.split(":", 1)
+        if len(prefix) < 30 and (
+            prefix.startswith("/") or prefix.startswith("|") or
+            any(k in prefix.lower() for k in ["اسم", "name", "worker", "employer", "agency", "office", "الطرف", "صاحب", "مكتب", "وكالة", "ة", "رقم"])
+        ):
+            val_str = suffix.strip()
+
+    val_str = re.sub(r'^[:=\-–—\s|/]+', '', val_str)
+    val_str = re.sub(r'[:=\-–—\s|/]+$', '', val_str)
+    val_str = re.sub(r'\s+', ' ', val_str).strip()
+    if val_str.startswith("(") and val_str.endswith(")"):
+        inner = val_str[1:-1].strip()
+        if inner.lower() in GENERIC_TITLES:
+            return None
+    if val_str.lower() in GENERIC_TITLES:
+        return None
+    return val_str if val_str else None
+
+
+def extract_field_from_text(text_or_lines, patterns, flags=re.IGNORECASE):
+    """
+    Extracts clean field value from text.
+    Handles:
+    - Same-line: 'Label: Value'
+    - Multi-column same line: 'Label: Value   Label2: Value2'
+    - Next-line: 'Label\nValue'
+    """
+    if not text_or_lines:
+        return None
+
+    if isinstance(text_or_lines, list):
+        text = "\n".join(text_or_lines)
+        lines = text_or_lines
+    else:
+        text = str(text_or_lines)
+        lines = [line.strip() for line in text.splitlines() if line.strip()]
+
+    # 1. Direct Regex Search (check all matches in text)
+    for pat in patterns:
+        for m in re.finditer(pat, text, flags | re.MULTILINE):
+            val = m.group(1).strip()
+            if "\n" in val:
+                val = val.split("\n")[0].strip()
+            val = re.split(r'\s{2,}|\t|\s+(?=[A-Za-z\u0600-\u06FF\s]+:)', val)[0].strip()
+            cleaned = clean_extracted_value(val)
+            if cleaned:
+                return cleaned
+
+    # 2. Line-by-line fallback (Label on line i, Value on line i+1)
+    label_patterns = []
+    for pat in patterns:
+        prefix_match = re.match(r'^\(?\?:?([^()]+)\)?', pat)
+        if prefix_match:
+            label_patterns.append(prefix_match.group(1))
+
+    for i, line in enumerate(lines):
+        line_clean = line.strip()
+        for l_pat in label_patterns:
+            if re.search(rf'^{l_pat}[:=\-–]?$', line_clean, flags=flags) and i + 1 < len(lines):
+                next_val = lines[i + 1].strip()
+                if next_val and not any(re.search(rf'^{lp}[:=\-–]?$', next_val, flags=flags) for lp in label_patterns):
+                    cleaned = clean_extracted_value(next_val)
+                    if cleaned:
+                        return cleaned
+
+    return None
+
+
+def normalize_date_string(date_str):
+    """Converts various date formats (Gregorian or common formats) to YYYY-MM-DD."""
+    if not date_str:
+        return None
+    d = str(date_str).strip()
+
+    m = re.search(r'([0-9]{1,4}[-/.][0-9]{1,2}[-/.][0-9]{1,4})', d)
+    if not m:
+        return None
+    raw = m.group(1).replace("/", "-").replace(".", "-")
+    parts = raw.split("-")
+
+    try:
+        if len(parts) == 3:
+            if len(parts[0]) == 4:
+                year, month, day = int(parts[0]), int(parts[1]), int(parts[2])
+            else:
+                day, month, year = int(parts[0]), int(parts[1]), int(parts[2])
+
+            dt = datetime.date(year, month, day)
+            return str(dt)
+    except Exception:
+        pass
+
+    try:
+        return str(getdate(d))
+    except Exception:
+        return None
+
+
 def calculate_contract_end_date(contract_date, duration_str="2 Years"):
     """
-    Computes contract end date by adding contract duration to start/contract date.
-    Supports English and Arabic duration strings: '2 Years', '24 Months', 'سنتين', '1 Year', etc.
+    Computes contract end date by adding contract duration to start date.
+    Supports English & Arabic duration strings: '2 Years', '24 Months', 'سنتين', '1 Year', 'سنة'.
     """
     if not contract_date:
         return None
     try:
         from dateutil.relativedelta import relativedelta
-        start = getdate(contract_date)
+        if isinstance(contract_date, str):
+            parts = [int(p) for p in re.findall(r'\d+', contract_date)]
+            if len(parts) >= 3:
+                if parts[0] > 1000:
+                    start = datetime.date(parts[0], parts[1], parts[2])
+                else:
+                    start = datetime.date(parts[2], parts[1], parts[0])
+            else:
+                start = getdate(contract_date)
+        else:
+            start = getdate(contract_date)
+
         dur_str = str(duration_str or "2 Years").strip().lower()
 
         if "month" in dur_str or "شهر" in dur_str:
             m = re.search(r'\d+', dur_str)
             months = int(m.group(0)) if m else 24
             return str(start + relativedelta(months=months))
-        elif "سنتين" in dur_str:
+        elif "سنتين" in dur_str or "2" in dur_str:
             return str(start + relativedelta(years=2))
-        elif "year" in dur_str or "سنة" in dur_str:
+        elif "year" in dur_str or "سنة" in dur_str or "1" in dur_str:
             m = re.search(r'\d+', dur_str)
             years = int(m.group(0)) if m else 2
             return str(start + relativedelta(years=years))
@@ -168,14 +339,19 @@ def calculate_contract_end_date(contract_date, duration_str="2 Years"):
         return None
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# 5. Core Contract Parsing Logic
+# ─────────────────────────────────────────────────────────────────────────────
 def parse_structured_contract_text(full_text_or_blocks):
     """
     Parses full contract text into structured dictionary matching the complete
     Saudi Musaned / Employment contract specification.
+    Extracts all available data fields from Arabic and/or English sections.
+    Does NOT inject fake placeholder names.
     """
     structurizer = ContractTextStructurizer(full_text_or_blocks)
     text = structurizer.unified_text
-    lines = structurizer.structured_lines
+    sec = structurizer.sections
 
     data = {
         # 1. Header Information
@@ -184,20 +360,24 @@ def parse_structured_contract_text(full_text_or_blocks):
         "contract_date": None,
         "contract_start_date": None,
         "contract_end_date": None,
-        "contract_duration": None,
+        "contract_duration": "2 Years",
         "amount_detail": None,
         "monthly_salary": None,
         "profession": None,
 
-        # 2. Employer (First Party)
+        # 2. Employer (First Party / Sponsor)
+        "sponsor_name": None,
+        "sponsor_id": None,
+        "telephone": None,
         "employer_name": None,
         "employer_id": None,
-        "employer_street": None,
-        "employer_city": None,
         "employer_mobile": None,
         "employer_telephone": None,
+        "employer_street": None,
+        "employer_city": None,
 
-        # 3. Saudi Recruiting Agency (First Party Agency / Contractor)
+        # 3. Saudi Recruiting Agency (Second Party / Contractor)
+        "contractor_name": None,
         "recruiting_agency_name": None,
         "recruiting_agency_license": None,
         "recruiting_agency_telephone": None,
@@ -206,191 +386,346 @@ def parse_structured_contract_text(full_text_or_blocks):
         "recruiting_agency_email": None,
 
         # 4. Her Country Recruitment Agency (Ethiopian / Origin Agency)
+        "agency": None,
         "origin_agency_name": None,
         "origin_agency_license": None,
+        "origin_agency_phone": None,
         "origin_agency_street": None,
         "origin_agency_city": None,
-        "origin_agency_phone": None,
         "origin_agency_email": None,
 
-        # 5. Worker / Applicant details (if mentioned in contract)
+        # 5. Worker / Applicant details
         "applicant_name": None,
         "passport_number": None,
+        "nationality": None,
     }
 
-    # ── Regex Patterns ──
+    # ── 1. Contract & Visa Header ──
 
-    # Contract Number (e.g., "Contract No: 123456789" or "رقم العقد: 123456789")
-    m = re.search(r'(?:contract\s*(?:no|number)|رقم\s*العقد)\s*[:=\-]?\s*([A-Za-z0-9\-_/]{5,25})', text, re.IGNORECASE)
-    if m:
-        data["contract_number"] = m.group(1).strip()
+    # Contract Number
+    data["contract_number"] = extract_field_from_text(
+        text,
+        [
+            r'(?:رقم\s*عقد\s*خدمات\s*التوسط|رقم\s*عقد\s*التوسط|رقم\s*العقد|رقم\s*الاتفاقية)\s*[:=\-–]?\s*([A-Za-z0-9\-_/]{4,25})',
+            r'(?:contract\s*(?:no|number|id)|agreement\s*(?:no|number))\s*[:=\-–]?\s*([A-Za-z0-9\-_/]{4,25})',
+        ]
+    )
 
-    # Visa Number (e.g., "Visa No: 1309827465" or "رقم التأشيرة: 1309827465")
-    m = re.search(r'(?:visa\s*(?:no|number)|رقم\s*التأشيرة)\s*[:=\-]?\s*([0-9]{8,15})', text, re.IGNORECASE)
-    if m:
-        data["visa_number"] = m.group(1).strip()
+    # Visa Number
+    data["visa_number"] = extract_field_from_text(
+        text,
+        [
+            r'(?:رقم\s*التأشيرة|رقم\s*التاشيرة|رقم\s*تأشيرة\s*العمل|رقم\s*صادر\s*التأشيرة|رقم\s*الصادر)\s*[:=\-–]?\s*([0-9]{8,15})',
+            r'(?:visa\s*(?:no|number|id)|visa\s*issued\s*no)\s*[:=\-–]?\s*([0-9]{8,15})',
+        ]
+    )
 
-    # Contract Date (e.g., "2026-08-15" or "15/08/2026")
-    m = re.search(r'(?:contract\s*date|تاريخ\s*العقد|date)\s*[:=\-]?\s*([0-9]{2,4}[-/.][0-9]{1,2}[-/.][0-9]{2,4})', text, re.IGNORECASE)
-    if m:
-        raw_dt = m.group(1).strip()
-        try:
-            data["contract_date"] = str(getdate(raw_dt))
-        except Exception:
-            data["contract_date"] = raw_dt
+    # Contract Date
+    raw_date = extract_field_from_text(
+        text,
+        [
+            r'(?:تاريخ\s*إبرام\s*العقد|تاريخ\s*ابرام\s*العقد|تاريخ\s*العقد|تاريخ\s*توقيع\s*العقد|تاريخ\s*الاتفاقية|تاريخ\s*الإصدار|تاريخ\s*الاصدار)\s*[:=\-–]?\s*([0-9]{1,4}[-/.][0-9]{1,2}[-/.][0-9]{1,4})',
+            r'(?:contract\s*date|agreement\s*date|date\s*of\s*agreement|issue\s*date|date)\s*[:=\-–]?\s*([0-9]{1,4}[-/.][0-9]{1,2}[-/.][0-9]{1,4})',
+        ]
+    )
+    if raw_date:
+        data["contract_date"] = normalize_date_string(raw_date)
+        data["contract_start_date"] = data["contract_date"]
 
-    # Contract Duration (e.g., "2 Years" or "24 Months" or "سنتين")
-    m = re.search(r'(?:contract\s*duration|duration|period|مدة\s*العقد)\s*[:=\-]?\s*([0-9]+\s*(?:years?|months?|سنة|سنتين|شهر))', text, re.IGNORECASE)
-    if m:
-        data["contract_duration"] = m.group(1).strip()
+    # Contract Duration
+    dur = extract_field_from_text(
+        text,
+        [
+            r'(?:مدة\s*العقد|مدة\s*الاتفاقية|المدة)\s*[:=\-–]?\s*([0-9]+\s*(?:سنة|سنتين|أشهر|شهر|عام|أعوام|years?|months?)|سنتين|سنة\s*واحدة)',
+            r'(?:contract\s*duration|duration|period|contract\s*period)\s*[:=\-–]?\s*([0-9]+\s*(?:years?|months?)|2\s*years|24\s*months)',
+        ]
+    )
+    if dur:
+        data["contract_duration"] = dur
     else:
         data["contract_duration"] = "2 Years"
 
-    # Compute Contract Start & End Dates
-    if data.get("contract_date"):
-        data["contract_start_date"] = data["contract_date"]
-        data["contract_end_date"] = calculate_contract_end_date(data["contract_date"], data.get("contract_duration"))
+    # Contract End Date
+    if data["contract_date"]:
+        data["contract_end_date"] = calculate_contract_end_date(data["contract_date"], data["contract_duration"])
 
-    # Salary / Amount Detail (e.g., "1000 SAR" or "1,000 SR" or "1000 ريال")
-    m = re.search(r'(?:salary|monthly\s*salary|amount|الأجر\s*الشهري|الراتب)\s*[:=\-]?\s*([0-9,.]+\s*(?:SAR|SR|USD|ETB|ريال)?)', text, re.IGNORECASE)
-    if m:
-        val_str = m.group(1).strip()
-        data["monthly_salary"] = val_str
-        # Extract numeric float for amount_detail
-        num_match = re.search(r'([0-9]+(?:,[0-9]+)*(?:\.[0-9]+)?)', val_str)
-        if num_match:
+    # Monthly Salary / Amount
+    salary_str = extract_field_from_text(
+        text,
+        [
+            r'(?:الراتب\s*الشهري|الراتب|الأجر\s*الشهري|الأجر|أجر\s*العامل|قيمة\s*العقد)\s*[:=\-–]?\s*([0-9,.]+\s*(?:ريال|SAR|SR|USD|ETB)?)',
+            r'(?:monthly\s*salary|salary|basic\s*salary|wage|monthly\s*wage|amount)\s*[:=\-–]?\s*([0-9,.]+\s*(?:SAR|SR|USD|ETB|ريال)?)',
+        ]
+    )
+    if salary_str:
+        data["monthly_salary"] = salary_str
+        num_m = re.search(r'([0-9]+(?:,[0-9]+)*(?:\.[0-9]+)?)', salary_str)
+        if num_m:
             try:
-                data["amount_detail"] = float(num_match.group(1).replace(",", ""))
+                data["amount_detail"] = float(num_m.group(1).replace(",", ""))
             except Exception:
                 pass
 
-    # Profession (e.g., "House Maid" or "عاملة منزلية")
-    m = re.search(r'(?:profession|job|occupation|المهنة)\s*[:=\-]?\s*([A-Za-z\s\u0600-\u06FF]{3,30})', text, re.IGNORECASE)
-    if m:
-        data["profession"] = m.group(1).strip()
-
-    # ── Section Breakdown: Split text by Party / Section Headers ──
-    # Sections typically:
-    # 1. Employer / First Party
-    # 2. Recruiting Agency / Saudi Office
-    # 3. Her Country Agency / Foreign Employment Agent (e.g., ANWAR SULTAN)
-
-    employer_section = ""
-    recruiting_agency_section = ""
-    her_country_section = ""
-
-    # Split using section header boundaries
-    section_splits = re.split(
-        r'(?=employer|first\s*party|صاحب\s*العمل|الطرف\s*الأول|recruiting\s*agency|recruitment\s*office|مكتب\s*الاستقدام|الطرف\s*الثاني|her\s*country|foreign\s*agency|وكالة\s*الدولة\s*الأجنبية|foreign\s*employment\s*agent)',
+    # Profession
+    data["profession"] = extract_field_from_text(
         text,
-        flags=re.IGNORECASE
+        [
+            r'(?:المهنة|الوظيفة|المسمى\s*الوظيفي)\s*[:=\-–]?\s*([^\r\n]+)',
+            r'(?:profession|job|occupation|position)\s*[:=\-–]?\s*([^\r\n]+)',
+        ]
     )
 
-    for sec in section_splits:
-        sec_lower = sec.lower()
-        if any(k in sec_lower for k in ["her country", "foreign agency", "foreign employment agent", "وكالة الدولة الأجنبية", "anwar sultan"]):
-            her_country_section = sec
-        elif any(k in sec_lower for k in ["recruiting agency", "recruitment office", "مكتب الاستقدام", "الطرف الثاني"]):
-            recruiting_agency_section = sec
-        elif any(k in sec_lower for k in ["employer", "first party", "صاحب العمل", "الطرف الأول"]):
-            employer_section = sec
+    # ── 2. Employer (First Party / Sponsor) ──
+    emp_text = sec["employer"] or text
 
-    # Helper function to extract fields within a specific section
-    def extract_field(sec_text, field_regex):
-        if not sec_text:
-            return None
-        m = re.search(field_regex, sec_text, re.IGNORECASE)
-        return m.group(1).strip() if m else None
+    data["employer_name"] = extract_field_from_text(
+        emp_text,
+        [
+            r'(?:اسم\s*صاحب\s*العمل|اسم\s*الكفيل|اسم\s*المستقدم)\s*[:=\-–]?\s*([^\r\n]+)',
+            r'(?:employer\s*name|sponsor\s*name|first\s*party\s*name)\s*[:=\-–]?\s*([^\r\n]+)',
+            r'اسم\s*العميل\s*[:=\-–]?\s*([^\r\n]+)',
+            r'الاسم\s*[:=\-–]?\s*([^\r\n]+)',
+            r'Name\s*[:=\-–]?\s*([^\r\n]+)',
+        ]
+    )
 
-    # ── 1. Employer Fields ──
-    # If explicit section found, search in section; else search in entire text with context
-    target_emp = employer_section or text
-    data["employer_name"] = extract_field(target_emp, r'(?:employer(?:\s*name)?|name|الاسم|اسم\s*صاحب\s*العمل)\s*[:=\-]?\s*([A-Za-z\s\u0600-\u06FF]{3,50})')
-    data["employer_id"] = extract_field(target_emp, r'(?:national\s*id(?:\s*number)?|id\s*number|رقم\s*الهوية|السجل\s*المدني)\s*[:=\-]?\s*([0-9]{9,15})')
-    data["employer_street"] = extract_field(target_emp, r'(?:street|الشارع)\s*[:=\-]?\s*([A-Za-z0-9\s,.\u0600-\u06FF]{3,50})')
-    data["employer_city"] = extract_field(target_emp, r'(?:city|المدينة)\s*[:=\-]?\s*([A-Za-z\s\u0600-\u06FF]{3,30})')
-    data["employer_mobile"] = extract_field(target_emp, r'(?:mobile|الجوال)\s*[:=\-]?\s*(\+?[0-9\s\-]{8,20})')
-    data["employer_telephone"] = extract_field(target_emp, r'(?:telephone|phone|هاتف|الهاتف)\s*[:=\-]?\s*(\+?[0-9\s\-]{8,20})')
+    data["employer_id"] = extract_field_from_text(
+        emp_text,
+        [
+            r'(?:رقم\s*الهوية\s*الوطنية|رقم\s*الهوية|الهوية\s*الوطنية|السجل\s*المدني|رقم\s*الإقامة|رقم\s*بطاقة\s*الأحوال|رقم\s*هوية\s*صاحب\s*العمل)\s*[:=\-–]?\s*([0-9]{9,15})',
+            r'(?:national\s*id(?:\s*number)?|national\s*id\s*no|id\s*number|id\s*no|iqama\s*(?:no|number))\s*[:=\-–]?\s*([0-9]{9,15})',
+        ]
+    )
 
-    # ── 2. Saudi Recruiting Agency Fields ──
-    target_rec = recruiting_agency_section or text
-    data["recruiting_agency_name"] = extract_field(target_rec, r'(?:agency(?:\s*name)?|office(?:\s*name)?|name|الاسم|اسم\s*المكتب)\s*[:=\-]?\s*([A-Za-z\s\u0600-\u06FF]{3,60})')
-    data["recruiting_agency_license"] = extract_field(target_rec, r'(?:license(?:\s*no|\s*number)?|رقم\s*الترخيص)\s*[:=\-]?\s*([A-Za-z0-9\-_/]{3,20})')
-    data["recruiting_agency_telephone"] = extract_field(target_rec, r'(?:telephone|phone|هاتف|الهاتف)\s*[:=\-]?\s*(\+?[0-9\s\-]{8,20})')
-    data["recruiting_agency_street"] = extract_field(target_rec, r'(?:street|الشارع)\s*[:=\-]?\s*([A-Za-z0-9\s,.\u0600-\u06FF]{3,50})')
-    data["recruiting_agency_city"] = extract_field(target_rec, r'(?:city|المدينة)\s*[:=\-]?\s*([A-Za-z\s\u0600-\u06FF]{3,30})')
-    data["recruiting_agency_email"] = extract_field(target_rec, r'(?:email|البريد\s*الإلكتروني)\s*[:=\-]?\s*([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)')
+    data["employer_mobile"] = extract_field_from_text(
+        emp_text,
+        [
+            r'(?:رقم\s*الجوال|الجوال|رقم\s*جوال\s*صاحب\s*العمل)\s*[:=\-–]?\s*(\+?[0-9\s\-]{8,20})',
+            r'(?:mobile\s*(?:no|number)?|cell\s*(?:no|number)?)\s*[:=\-–]?\s*(\+?[0-9\s\-]{8,20})',
+        ]
+    )
 
-    # ── 3. Her Country Recruitment Agency Fields (Ethiopian Origin Agency) ──
-    target_origin = her_country_section or text
-    data["origin_agency_name"] = extract_field(target_origin, r'(?:name|agency(?:\s*name)?|الاسم|اسم\s*الوكالة)\s*[:=\-]?\s*([A-Za-z\s\u0600-\u06FF]{3,60})')
-    data["origin_agency_license"] = extract_field(target_origin, r'(?:license(?:\s*no|\s*number)?|رقم\s*الترخيص)\s*[:=\-]?\s*([A-Za-z0-9\-_/]{2,20})')
-    data["origin_agency_street"] = extract_field(target_origin, r'(?:street|الشارع)\s*[:=\-]?\s*([A-Za-z0-9\s,.\u0600-\u06FF]{3,50})')
-    data["origin_agency_city"] = extract_field(target_origin, r'(?:city|المدينة)\s*[:=\-]?\s*([A-Za-z\s\u0600-\u06FF]{3,30})')
-    data["origin_agency_phone"] = extract_field(target_origin, r'(?:contact(?:\s*no)?|telephone|phone|هاتف|رقم\s*الاتصال)\s*[:=\-]?\s*(\+?[0-9\s\-]{8,20})')
-    data["origin_agency_email"] = extract_field(target_origin, r'(?:email|البريد\s*الإلكتروني)\s*[:=\-]?\s*([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)')
+    data["employer_telephone"] = extract_field_from_text(
+        emp_text,
+        [
+            r'(?:رقم\s*الهاتف|الهاتف|هاتف\s*صاحب\s*العمل)\s*[:=\-–]?\s*(\+?[0-9\s\-]{7,20})',
+            r'(?:telephone\s*(?:no|number)?|phone\s*(?:no|number)?)\s*[:=\-–]?\s*(\+?[0-9\s\-]{7,20})',
+        ]
+    )
 
-    # Check for known agency name "ANWAR SULTAN FOREIGN EMPLOYMENT AGENT"
-    if "anwar sultan" in text.lower():
-        if not data["origin_agency_name"] or "anwar" not in data["origin_agency_name"].lower():
-            data["origin_agency_name"] = "ANWAR SULTAN FOREIGN EMPLOYMENT AGENT"
-        if not data["origin_agency_license"]:
-            # Look for 3226 or nearby digits
-            m_lic = re.search(r'(?:license\s*(?:no)?|3226)\s*[:=\-]?\s*([0-9]{3,6})', text, re.IGNORECASE)
-            if m_lic:
-                data["origin_agency_license"] = m_lic.group(1)
-            else:
-                data["origin_agency_license"] = "3226"
+    data["employer_city"] = extract_field_from_text(
+        emp_text,
+        [
+            r'(?:المدينة|مدينة\s*الإقامة|مدينة\s*صاحب\s*العمل)\s*[:=\-–]?\s*([^\r\n]+)',
+            r'(?:city|residence\s*city)\s*[:=\-–]?\s*([^\r\n]+)',
+        ]
+    )
 
-    # Default origin city to Addis Ababa if Ethiopian agency
-    if data["origin_agency_name"] and not data["origin_agency_city"]:
-        data["origin_agency_city"] = "Addis Ababa"
-    if data["origin_agency_name"] and not data["origin_agency_street"]:
-        data["origin_agency_street"] = "Addis Ababa"
+    data["employer_street"] = extract_field_from_text(
+        emp_text,
+        [
+            r'(?:الحي\s*/\s*الشارع|الحي\s*والشارع|الحي|الشارع|العنوان)\s*[:=\-–]?\s*([^\r\n]+)',
+            r'(?:street|district|address)\s*[:=\-–]?\s*([^\r\n]+)',
+        ]
+    )
 
-    # ── 4. Fallback Aliases for Applicant Dossier fields ──
-    # Sponsor Name -> employer_name
-    sponsor_name = data["employer_name"] or "Saudi Employer"
-    sponsor_id = data["employer_id"] or "1000000000"
-    telephone = data["employer_mobile"] or data["employer_telephone"] or "+966500000000"
-    contractor_name = data["recruiting_agency_name"] or "Saudi Recruitment Office"
-    agency = data["origin_agency_name"] or "ANWAR SULTAN FOREIGN EMPLOYMENT AGENT"
+    # ── 3. Saudi Recruiting Agency (Second Party / Contractor) ──
+    rec_text = sec["recruiting_agency"] or text
 
-    data["sponsor_name"] = sponsor_name
-    data["sponsor_id"] = sponsor_id
-    data["telephone"] = telephone
-    data["contractor_name"] = contractor_name
-    data["agency"] = agency
+    data["recruiting_agency_name"] = extract_field_from_text(
+        rec_text,
+        [
+            r'(?:اسم\s*مكتب\s*الاستقدام|اسم\s*المكتب|اسم\s*الشركة|اسم\s*جهة\s*الاستقدام|جهة\s*الاستقدام\s*المرخصة)\s*[:=\-–]?\s*([^\r\n]+)',
+            r'(?:recruiting\s*agency\s*name|recruitment\s*office\s*name|office\s*name|contractor\s*name|contractor|agency\s*name|company\s*name)\s*[:=\-–]?\s*([^\r\n]+)',
+            r'Office\s*Name\s*[:=\-–]?\s*([^\r\n]+)',
+            r'Agency\s*Name\s*[:=\-–]?\s*([^\r\n]+)',
+        ]
+    )
 
-    if not data["amount_detail"]:
-        data["amount_detail"] = 1000.0
+    data["recruiting_agency_license"] = extract_field_from_text(
+        rec_text,
+        [
+            r'(?:رقم\s*الترخيص|ترخيص\s*رقم|رقم\s*ترخيص\s*الاستقدام|السجل\s*التجاري)\s*[:=\-–]?\s*([A-Za-z0-9\-_/]{2,25})',
+            r'(?:license\s*(?:no|number)|license\s*#|commercial\s*reg)\s*[:=\-–]?\s*([A-Za-z0-9\-_/]{2,25})',
+        ]
+    )
+
+    data["recruiting_agency_telephone"] = extract_field_from_text(
+        rec_text,
+        [
+            r'(?:رقم\s*الهاتف|الهاتف|رقم\s*الاتصال|الجوال)\s*[:=\-–]?\s*(\+?[0-9\s\-]{7,20})',
+            r'(?:telephone\s*(?:no|number)?|phone\s*(?:no|number)?|contact\s*no)\s*[:=\-–]?\s*(\+?[0-9\s\-]{7,20})',
+        ]
+    )
+
+    data["recruiting_agency_street"] = extract_field_from_text(
+        rec_text,
+        [
+            r'(?:الشارع|الحي|العنوان)\s*[:=\-–]?\s*([^\r\n]+)',
+            r'(?:street|address)\s*[:=\-–]?\s*([^\r\n]+)',
+        ]
+    )
+
+    data["recruiting_agency_city"] = extract_field_from_text(
+        rec_text,
+        [
+            r'(?:المدينة)\s*[:=\-–]?\s*([^\r\n]+)',
+            r'(?:city)\s*[:=\-–]?\s*([^\r\n]+)',
+        ]
+    )
+
+    data["recruiting_agency_email"] = extract_field_from_text(
+        rec_text,
+        [
+            r'(?:البريد\s*الإلكتروني|البريد\s*الالكتروني|الإيميل)\s*[:=\-–]?\s*([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)',
+            r'(?:email|e-mail)\s*[:=\-–]?\s*([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)',
+            r'([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)',
+        ]
+    )
+
+    # ── 4. Origin Agency (Third Party / Ethiopian Agency) ──
+    orig_text = sec["origin_agency"] or text
+
+    data["origin_agency_name"] = extract_field_from_text(
+        orig_text,
+        [
+            r'(?:اسم\s*الوكالة\s*بالخارج|اسم\s*الوكالة|اسم\s*المكتب\s*الأجنبي|وكالة\s*الدولة\s*الأجنبية)\s*[:=\-–]?\s*([^\r\n]+)',
+            r'(?:foreign\s*agency\s*name|her\s*country\s*agency\s*name|origin\s*agency\s*name|foreign\s*agency|foreign\s*employment\s*agent)\s*[:=\-–]?\s*([^\r\n]+)',
+            r'Agency\s*Name\s*[:=\-–]?\s*([^\r\n]+)',
+        ]
+    )
+
+    data["origin_agency_license"] = extract_field_from_text(
+        orig_text,
+        [
+            r'(?:رقم\s*الترخيص|ترخيص\s*رقم|رقم\s*ترخيص\s*الوكالة)\s*[:=\-–]?\s*([A-Za-z0-9\-_/]{2,25})',
+            r'(?:license\s*(?:no|number)|license\s*#)\s*[:=\-–]?\s*([A-Za-z0-9\-_/]{2,25})',
+        ]
+    )
+
+    data["origin_agency_phone"] = extract_field_from_text(
+        orig_text,
+        [
+            r'(?:رقم\s*الاتصال|الهاتف|رقم\s*الهاتف|الجوال)\s*[:=\-–]?\s*(\+?[0-9\s\-]{7,20})',
+            r'(?:contact\s*(?:no|number)?|phone\s*(?:no|number)?|telephone)\s*[:=\-–]?\s*(\+?[0-9\s\-]{7,20})',
+        ]
+    )
+
+    data["origin_agency_street"] = extract_field_from_text(
+        orig_text,
+        [
+            r'(?:الشارع|العنوان|الحي)\s*[:=\-–]?\s*([^\r\n]+)',
+            r'(?:street|address)\s*[:=\-–]?\s*([^\r\n]+)',
+        ]
+    )
+
+    data["origin_agency_city"] = extract_field_from_text(
+        orig_text,
+        [
+            r'(?:المدينة)\s*[:=\-–]?\s*([^\r\n]+)',
+            r'(?:city)\s*[:=\-–]?\s*([^\r\n]+)',
+        ]
+    )
+
+    data["origin_agency_email"] = extract_field_from_text(
+        orig_text,
+        [
+            r'(?:البريد\s*الإلكتروني|البريد\s*الالكتروني|الإيميل)\s*[:=\-–]?\s*([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)',
+            r'(?:email|e-mail)\s*[:=\-–]?\s*([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)',
+        ]
+    )
+
+    # ── 5. Worker / Applicant Details ──
+    work_text = sec["worker"] or text
+
+    data["applicant_name"] = extract_field_from_text(
+        work_text,
+        [
+            r'(?:اسم\s*العاملة\s*المنزلية|اسم\s*العامل\s*المنزلي|اسم\s*العاملة|اسم\s*العامل|اسم\s*المستقدمة|اسم\s*المستقدم)\s*[:=\-–]?\s*([^\r\n]+)',
+            r'(?:worker\s*name|domestic\s*worker\s*name|applicant\s*name|name\s*of\s*worker|name\s*of\s*applicant)\s*[:=\-–]?\s*([^\r\n]+)',
+            r'Worker\s*Name\s*[:=\-–]?\s*([^\r\n]+)',
+            r'Applicant\s*Name\s*[:=\-–]?\s*([^\r\n]+)',
+            r'Full\s*Name\s*[:=\-–]?\s*([^\r\n]+)',
+            r'الاسم\s*[:=\-–]?\s*([^\r\n]+)',
+            r'Name\s*[:=\-–]?\s*([^\r\n]+)',
+        ]
+    )
+
+    data["passport_number"] = extract_field_from_text(
+        work_text,
+        [
+            r'(?:رقم\s*جواز\s*السفر|رقم\s*الجواز|جواز\s*السفر)\s*[:=\-–]?\s*([A-Za-z0-9]{6,12})',
+            r'(?:passport\s*(?:no|number)|passport\s*#)\s*[:=\-–]?\s*([A-Za-z0-9]{6,12})',
+        ]
+    )
+
+    data["nationality"] = extract_field_from_text(
+        work_text,
+        [
+            r'(?:الجنسية|جنسية\s*العامل)\s*[:=\-–]?\s*([^\r\n]+)',
+            r'(?:nationality)\s*[:=\-–]?\s*([^\r\n]+)',
+        ]
+    )
+
+    # ── 6. Dossier Direct Aliases (NO FAKE DEFAULTS) ──
+    data["sponsor_name"] = data["employer_name"]
+    data["sponsor_id"] = data["employer_id"]
+    data["telephone"] = data["employer_mobile"] or data["employer_telephone"]
+    data["contractor_name"] = data["recruiting_agency_name"]
+    data["agency"] = data["origin_agency_name"]
 
     return data
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 4. Whitelisted RPC Endpoints
+# 6. Whitelisted RPC Endpoints & File Resolver
 # ─────────────────────────────────────────────────────────────────────────────
 def _resolve_frappe_file_path(file_url):
-    """Translates a Frappe file_url to physical filesystem path."""
+    """Translates a Frappe file_url to physical filesystem path across OSes."""
     if not file_url:
         return None
-    clean = str(file_url).lstrip("/")
+
+    clean = str(file_url).lstrip("/").replace("\\", "/")
+    
+    # 1. Direct path exists
     if os.path.exists(clean):
         return os.path.abspath(clean)
+
+    # 2. Extract base file name
+    basename = os.path.basename(clean)
+
+    # 3. Check public files
+    pub_path = frappe.get_site_path("public", "files", basename)
+    if os.path.exists(pub_path):
+        return pub_path
+
+    # 4. Check private files
+    priv_path = frappe.get_site_path("private", "files", basename)
+    if os.path.exists(priv_path):
+        return priv_path
+
+    # 5. Check direct get_site_path
     site_path = frappe.get_site_path(clean)
     if os.path.exists(site_path):
         return site_path
-    public_path = frappe.get_site_path("public", clean)
-    if os.path.exists(public_path):
-        return public_path
+
+    # 6. Search within site files
+    try:
+        site_folder = frappe.get_site_path()
+        for root, dirs, files in os.walk(site_folder):
+            if basename in files:
+                return os.path.join(root, basename)
+    except Exception:
+        pass
+
     return None
+
 
 @frappe.whitelist()
 def parse_contract_document(file_url=None, dossier_name=None, raw_text=None):
     """
     Parses employment/recruitment contract PDF using PyMuPDF + Structured Multi-line Text Engine.
-    If dossier_name is supplied, updates Applicant Dossier fields directly.
+    Updates Applicant Dossier fields cleanly with real extracted data.
     """
     extracted_data = None
 
@@ -406,7 +741,7 @@ def parse_contract_document(file_url=None, dossier_name=None, raw_text=None):
             if blocks:
                 extracted_data = parse_structured_contract_text(blocks)
 
-    # 3. If dossier_name provided without file_url
+    # 3. If dossier_name provided
     if not extracted_data and dossier_name and frappe.db.exists("Applicant Dossier", dossier_name):
         dos = frappe.get_doc("Applicant Dossier", dossier_name)
         if dos.attached_file:
@@ -416,51 +751,51 @@ def parse_contract_document(file_url=None, dossier_name=None, raw_text=None):
                 if blocks:
                     extracted_data = parse_structured_contract_text(blocks)
 
-    # Fallback if no text extracted (e.g. image scanned PDF without OCR)
     if not extracted_data:
-        # Provide default structured schema with notice
         extracted_data = parse_structured_contract_text("")
 
-    # If dossier_name is provided, update Applicant Dossier record
+    # Update Dossier record if dossier_name is provided
+    updated_fields = []
     if dossier_name and frappe.db.exists("Applicant Dossier", dossier_name):
         dos = frappe.get_doc("Applicant Dossier", dossier_name)
 
-        if extracted_data.get("sponsor_name"):
-            dos.sponsor_name = extracted_data["sponsor_name"]
-        if extracted_data.get("sponsor_id"):
-            dos.sponsor_id = extracted_data["sponsor_id"]
-        if extracted_data.get("telephone"):
-            dos.telephone = extracted_data["telephone"]
-        if extracted_data.get("visa_number"):
-            dos.visa_number = extracted_data["visa_number"]
-        if extracted_data.get("contract_date"):
-            dos.contract_date = extracted_data["contract_date"]
-        if extracted_data.get("contract_end_date") and hasattr(dos, "contract_end_date"):
-            dos.contract_end_date = extracted_data["contract_end_date"]
-        if extracted_data.get("contract_duration"):
-            dos.contract_duration = extracted_data["contract_duration"]
-        if extracted_data.get("amount_detail"):
-            dos.amount_detail = extracted_data["amount_detail"]
-        if extracted_data.get("contractor_name"):
-            dos.contractor_name = extracted_data["contractor_name"]
-        if extracted_data.get("agency"):
-            dos.agency = extracted_data["agency"]
+        field_mapping = [
+            ("sponsor_name", "sponsor_name"),
+            ("sponsor_id", "sponsor_id"),
+            ("telephone", "telephone"),
+            ("visa_number", "visa_number"),
+            ("contract_number", "contract_number"),
+            ("contract_date", "contract_date"),
+            ("contract_end_date", "contract_end_date"),
+            ("contract_duration", "contract_duration"),
+            ("amount_detail", "amount_detail"),
+            ("contractor_name", "contractor_name"),
+            ("agency", "agency"),
+            ("employer_street", "employer_street"),
+            ("employer_city", "employer_city"),
+            ("employer_mobile", "employer_mobile"),
+            ("recruiting_agency_license", "recruiting_agency_license"),
+            ("recruiting_agency_telephone", "recruiting_agency_telephone"),
+            ("recruiting_agency_street", "recruiting_agency_street"),
+            ("recruiting_agency_city", "recruiting_agency_city"),
+            ("recruiting_agency_email", "recruiting_agency_email"),
+            ("origin_agency_license", "origin_agency_license"),
+            ("origin_agency_phone", "origin_agency_phone"),
+            ("origin_agency_street", "origin_agency_street"),
+            ("origin_agency_city", "origin_agency_city"),
+            ("origin_agency_email", "origin_agency_email"),
+        ]
 
-        # Detailed contract fields if schema supports them
-        for fld in [
-            "contract_number", "employer_name", "employer_id", "employer_street", "employer_city",
-            "employer_mobile", "employer_telephone", "recruiting_agency_name", "recruiting_agency_license",
-            "recruiting_agency_telephone", "recruiting_agency_street", "recruiting_agency_city",
-            "recruiting_agency_email", "origin_agency_name", "origin_agency_license",
-            "origin_agency_street", "origin_agency_city", "origin_agency_phone", "origin_agency_email"
-        ]:
-            if hasattr(dos, fld) and extracted_data.get(fld):
-                setattr(dos, fld, extracted_data[fld])
+        for ext_key, doc_field in field_mapping:
+            val = extracted_data.get(ext_key)
+            if val is not None and hasattr(dos, doc_field):
+                setattr(dos, doc_field, val)
+                updated_fields.append(doc_field)
 
         dos.is_parsed = 1
         dos.save(ignore_permissions=True)
 
-        # Auto-lock applicant to contractor and advance state to Selected
+        # Cross-update applicant locked contractor and state
         if dos.applicant:
             target_contractor = dos.contractor_name or dos.agency
             if target_contractor:
@@ -478,6 +813,7 @@ def parse_contract_document(file_url=None, dossier_name=None, raw_text=None):
 
     return {
         "status": "success",
-        "message": "Contract parsed successfully with PyMuPDF structured text unification.",
-        "data": extracted_data
+        "message": f"Contract parsed successfully. Updated fields: {', '.join(updated_fields) if updated_fields else 'None'}",
+        "data": extracted_data,
+        "updated_fields": updated_fields
     }

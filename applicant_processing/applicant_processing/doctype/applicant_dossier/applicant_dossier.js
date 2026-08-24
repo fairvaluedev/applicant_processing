@@ -25,18 +25,19 @@ frappe.ui.form.on("Applicant Dossier", {
 
         if (!frm.is_new() && frm.doc.docstatus === 0) {
             if (frm.doc.attached_file) {
-                frm.add_custom_button(__("Parse Contract (PyMuPDF)"), function () {
+                const parse_btn_label = frm.doc.is_parsed ? __("Re-parse Contract") : __("Parse Contract (PyMuPDF)");
+                frm.add_custom_button(parse_btn_label, function () {
                     frappe.call({
                         method: "applicant_processing.applicant_processing.doctype.applicant_dossier.applicant_dossier.parse_dossier_file",
                         args: { dossier_name: frm.doc.name },
                         freeze: true,
-                        freeze_message: __("Extracting & Structuring Contract Data via PyMuPDF..."),
+                        freeze_message: __("Extracting & Structuring Contract Data..."),
                         callback: function(r) {
                             if (!r.exc) {
                                 frappe.show_alert({
                                     message: r.message || __("Contract parsed successfully!"),
                                     indicator: 'green'
-                                }, 6);
+                                }, 7);
                                 frm.reload_doc();
                             }
                         }
@@ -47,11 +48,23 @@ frappe.ui.form.on("Applicant Dossier", {
     },
 
     attached_file(frm) {
-        if (frm.doc.attached_file && !frm.doc.is_parsed && !frm.is_new()) {
+        if (frm.doc.attached_file && !frm.is_new()) {
             frappe.show_alert({
                 message: __("Contract attached. Click 'Parse Contract (PyMuPDF)' in Actions to extract details."),
                 indicator: 'blue'
             }, 5);
+        }
+    },
+
+    contract_date(frm) {
+        if (frm.doc.contract_date) {
+            calculate_end_date(frm);
+        }
+    },
+
+    contract_duration(frm) {
+        if (frm.doc.contract_date) {
+            calculate_end_date(frm);
         }
     },
 
@@ -102,3 +115,29 @@ frappe.ui.form.on("Applicant Dossier", {
         });
     }
 });
+
+function calculate_end_date(frm) {
+    if (!frm.doc.contract_date) return;
+    let d = frappe.datetime.str_to_obj(frm.doc.contract_date);
+    if (!d) return;
+    let dur = (frm.doc.contract_duration || "2 Years").toLowerCase();
+    let years = 2;
+    let months = 0;
+    if (dur.includes("month") || dur.includes("شهر")) {
+        let m = dur.match(/\d+/);
+        months = m ? parseInt(m[0]) : 24;
+        years = 0;
+    } else if (dur.includes("1") || dur.includes("سنة واحدة") || dur.includes("1 year")) {
+        years = 1;
+    } else {
+        years = 2;
+    }
+
+    if (months > 0) {
+        d.setMonth(d.getMonth() + months);
+    } else {
+        d.setFullYear(d.getFullYear() + years);
+    }
+    frm.set_value("contract_end_date", frappe.datetime.obj_to_str(d));
+}
+

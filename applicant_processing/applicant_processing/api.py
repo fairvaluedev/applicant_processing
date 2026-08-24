@@ -1238,57 +1238,59 @@ def get_operations_summary(from_date=None, to_date=None):
 
     fd_str = str(fd)
     td_str = str(td)
+    start_dt = f"{fd_str} 00:00:00"
+    end_dt = f"{td_str} 23:59:59.999999"
 
     # --- Intake & Registration ---
-    new_applicants = frappe.db.count("Applicant", {"creation": ["between", [fd_str, td_str]]})
+    new_applicants = frappe.db.count("Applicant", {"creation": ["between", [start_dt, end_dt]]})
     standard_count = frappe.db.count("Applicant", {
         "applicant_type": "Standard",
-        "creation": ["between", [fd_str, td_str]]
+        "creation": ["between", [start_dt, end_dt]]
     })
     muayena_count = frappe.db.count("Applicant", {
         "applicant_type": "Muayena",
-        "creation": ["between", [fd_str, td_str]]
+        "creation": ["between", [start_dt, end_dt]]
     })
     muslim_count = frappe.db.count("Applicant", {
         "religion": "Muslim",
-        "creation": ["between", [fd_str, td_str]]
+        "creation": ["between", [start_dt, end_dt]]
     })
 
     # --- CVs Generated ---
-    cvs_generated = frappe.db.count("CV Record", {"creation": ["between", [fd_str, td_str]]})
+    cvs_generated = frappe.db.count("CV Record", {"creation": ["between", [start_dt, end_dt]]})
 
     # --- Dossiers / Contracts ---
-    dossiers_created = frappe.db.count("Applicant Dossier", {"creation": ["between", [fd_str, td_str]]})
+    dossiers_created = frappe.db.count("Applicant Dossier", {"creation": ["between", [start_dt, end_dt]]})
 
     # --- Medical Stats ---
     fit_count = frappe.db.count("Applicant", {
         "medical_status": "FIT",
-        "modified": ["between", [fd_str, td_str]]
+        "modified": ["between", [start_dt, end_dt]]
     })
     unfit_count = frappe.db.count("Applicant", {
         "medical_status": "UNFIT",
-        "modified": ["between", [fd_str, td_str]]
+        "modified": ["between", [start_dt, end_dt]]
     })
 
     # --- Clearances (modified in period) ---
     lms_issued = frappe.db.count("LMS Clearance", {
         "status": "Issued",
-        "modified": ["between", [fd_str, td_str]]
+        "modified": ["between", [start_dt, end_dt]]
     })
 
     # --- DSR Stages ---
-    stamped = frappe.db.count("DSR Stamp", {"creation": ["between", [fd_str, td_str]]})
-    tickets_booked = frappe.db.count("DSR Ticket", {"creation": ["between", [fd_str, td_str]]})
+    stamped = frappe.db.count("DSR Stamp", {"creation": ["between", [start_dt, end_dt]]})
+    tickets_booked = frappe.db.count("DSR Ticket", {"creation": ["between", [start_dt, end_dt]]})
     departed = frappe.db.count("DSR Departure", {
-        "departure_status": "Departed",
-        "modified": ["between", [fd_str, td_str]]
+        "status": "Departed",
+        "modified": ["between", [start_dt, end_dt]]
     })
 
     # --- Complaints ---
-    new_complaints = frappe.db.count("Agency Complaint", {"creation": ["between", [fd_str, td_str]]})
+    new_complaints = frappe.db.count("Agency Complaint", {"creation": ["between", [start_dt, end_dt]]})
     resolved_complaints = frappe.db.count("Agency Complaint", {
         "status": ["in", ["Resolved", "Dismissed / Closed"]],
-        "resolved_at": ["between", [fd_str, td_str]]
+        "resolved_at": ["between", [start_dt, end_dt]]
     })
     open_complaints = frappe.db.count("Agency Complaint", {
         "status": ["in", ["Open", "Under Investigation"]]
@@ -1297,17 +1299,17 @@ def get_operations_summary(from_date=None, to_date=None):
     # --- Agency Selections ---
     selected_today = frappe.db.count("Applicant", {
         "applicant_state": "Selected",
-        "locked_at": ["between", [fd_str, td_str]]
+        "locked_at": ["between", [start_dt, end_dt]]
     })
 
     # --- Corridor Breakdown ---
     ksa_pipeline = frappe.db.count("DSR", {
         "destination_country": "Saudi Arabia",
-        "creation": ["between", [fd_str, td_str]]
+        "creation": ["between", [start_dt, end_dt]]
     })
     kwt_pipeline = frappe.db.count("DSR", {
         "destination_country": "Kuwait",
-        "creation": ["between", [fd_str, td_str]]
+        "creation": ["between", [start_dt, end_dt]]
     })
 
     # --- Agent Performance (top 10 by CVs registered) ---

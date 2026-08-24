@@ -19,29 +19,27 @@ class ApplicantDossier(Document):
 			self.contract_end_date = calculate_contract_end_date(self.contract_date, self.contract_duration or "2 Years")
 
 	def populate_from_contract_request(self):
-		"""Populates Applicant, CV Record, Contractor, and Statuses from the selected Contract Request."""
-		if not self.contract_request:
-			frappe.throw("Contract Request is required to create an Applicant Dossier.")
+		"""Populates Applicant, CV Record, Contractor, and Statuses from the selected Contract Request if available."""
+		if self.contract_request:
+			cr = frappe.get_doc("Contract Request", self.contract_request)
+			self.applicant = cr.applicant
+			self.cv_record = cr.cv_reference
+			self.contract_status = cr.status
+			if cr.contractor and not self.contractor_name:
+				self.contractor_name = cr.contractor
 
-		cr = frappe.get_doc("Contract Request", self.contract_request)
-
-		self.applicant = cr.applicant
-		self.cv_record = cr.cv_reference
-		self.contract_status = cr.status
-		if cr.contractor:
-			self.contractor_name = cr.contractor
-
-		if cr.applicant:
-			app = frappe.get_doc("Applicant", cr.applicant)
+		if self.applicant:
+			app = frappe.get_doc("Applicant", self.applicant)
 			self.first_name = app.first_name
 			self.last_name = app.last_name
 			self.full_name = getattr(app, "full_name", None) or f"{app.first_name or ''} {app.last_name or ''}".strip()
 			self.nationality = app.nationality
 			self.passport_number = app.passport_number
-			self.destination_country = getattr(app, "destination_country", None) or "Saudi Arabia"
+			if not self.destination_country:
+				self.destination_country = getattr(app, "destination_country", None) or "Saudi Arabia"
 
-		if cr.cv_reference:
-			self.cv_status = frappe.db.get_value("CV Record", cr.cv_reference, "status")
+		if self.cv_record:
+			self.cv_status = frappe.db.get_value("CV Record", self.cv_record, "status")
 
 	def _calculate_contract_elapsed_days(self):
 		"""Calculates elapsed days since contract arrival."""
@@ -123,12 +121,10 @@ def parse_dossier_file(dossier_name):
 	dossier = frappe.get_doc("Applicant Dossier", dossier_name)
 
 	if not dossier.attached_file:
-		frappe.throw("Please attach a file before parsing.")
-
-	if dossier.is_parsed:
-		frappe.throw("This dossier has already been parsed. Manual edits will not be overwritten.")
+		frappe.throw("Please attach a contract file before parsing.")
 
 	from applicant_processing.applicant_processing.utils.contract_parser import parse_contract_document
 	res = parse_contract_document(file_url=dossier.attached_file, dossier_name=dossier_name)
 
-	return res.get("message", "File successfully parsed and additional fields populated.")
+	return res.get("message", "File successfully parsed and fields populated.")
+
