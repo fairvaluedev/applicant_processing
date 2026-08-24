@@ -257,23 +257,64 @@ def register_applicant(applicant_name):
 
 
 def _get_base64_image(file_url):
-    """Converts a Frappe file URL or path into a base64 Data URI for embedding in PDF."""
+    """Converts a Frappe file URL, path, or Data URI into a base64 Data URI for embedding in PDF."""
     if not file_url:
         return None
-    if str(file_url).startswith("data:image"):
-        return file_url
+    url_str = str(file_url).strip()
+    if url_str.startswith("data:image"):
+        return url_str
+    # If raw base64 string without data:image prefix
+    if len(url_str) > 100 and not url_str.startswith("http") and not "/" in url_str[:20]:
+        return f"data:image/jpeg;base64,{url_str}"
+
     import base64, mimetypes, os
+
+    # Strip domain if present (e.g. http://localhost:8000/files/...)
+    if "://" in url_str:
+        try:
+            url_str = "/" + url_str.split("://", 1)[1].split("/", 1)[1]
+        except Exception:
+            pass
+
+    clean_path = url_str.lstrip("/").replace("\\", "/")
+    basename = os.path.basename(clean_path)
+
+    candidate_paths = [
+        frappe.get_site_path("public", "files", basename),
+        frappe.get_site_path("private", "files", basename),
+        frappe.get_site_path("public", clean_path),
+        frappe.get_site_path(clean_path),
+    ]
+
+    # If direct file path exists on disk
+    if os.path.isabs(clean_path) and os.path.exists(clean_path):
+        candidate_paths.insert(0, clean_path)
+
+    for p in candidate_paths:
+        try:
+            if p and os.path.exists(p) and os.path.isfile(p):
+                mime_type, _ = mimetypes.guess_type(p)
+                mime_type = mime_type or "image/jpeg"
+                with open(p, "rb") as f:
+                    encoded = base64.b64encode(f.read()).decode("utf-8")
+                    return f"data:{mime_type};base64,{encoded}"
+        except Exception:
+            continue
+
+    # Search site directory recursively for the basename if not found yet
     try:
-        clean_path = str(file_url).lstrip("/")
-        site_path = frappe.get_site_path(clean_path)
-        if os.path.exists(site_path):
-            mime_type, _ = mimetypes.guess_type(site_path)
-            mime_type = mime_type or "image/jpeg"
-            with open(site_path, "rb") as f:
-                encoded = base64.b64encode(f.read()).decode("utf-8")
-                return f"data:{mime_type};base64,{encoded}"
+        site_folder = frappe.get_site_path()
+        for root, dirs, files in os.walk(site_folder):
+            if basename in files:
+                target_p = os.path.join(root, basename)
+                mime_type, _ = mimetypes.guess_type(target_p)
+                mime_type = mime_type or "image/jpeg"
+                with open(target_p, "rb") as f:
+                    encoded = base64.b64encode(f.read()).decode("utf-8")
+                    return f"data:{mime_type};base64,{encoded}"
     except Exception:
         pass
+
     return file_url
 
 
@@ -468,6 +509,30 @@ def generate_cv(applicant_name):
     )
     cv_record.db_set("file_attachment", saved_file.file_url)
 
+    # If Cloudflare R2 is enabled, upload PDF directly to R2 bucket with organized folder path
+    r2_url = None
+    try:
+        from applicant_processing.applicant_processing.utils.r2_storage import get_r2_settings, upload_bytes_to_r2, get_r2_key, notify_frontend
+        r2_set = get_r2_settings()
+        if r2_set and r2_set.get("enabled") and r2_set.get("sync_cv_pdfs"):
+            key = get_r2_key("Applicant", applicant_name, fieldname="cv", filename=file_name)
+            r2_res = upload_bytes_to_r2(pdf_bytes, key=key, content_type="application/pdf")
+            if r2_res.get("status") == "success":
+                r2_url = r2_res.get("url")
+                if hasattr(cv_record, "r2_url"):
+                    cv_record.db_set("r2_url", r2_url)
+
+        # Notify frontend client in realtime
+        notify_frontend("cv_generated", {
+            "applicant": applicant_name,
+            "cv_record": cv_record.name,
+            "file_url": r2_url or saved_file.file_url,
+            "r2_url": r2_url,
+            "applicant_state": "CV Generated" if applicant.applicant_state == "Registered" else applicant.applicant_state,
+        })
+    except Exception as e:
+        frappe.log_error(f"Failed to upload CV to R2: {e}", "Cloudflare R2")
+
     # Advance applicant state (only if they haven't passed this phase)
     if applicant.applicant_state == "Registered":
         applicant.applicant_state = "CV Generated"
@@ -475,7 +540,8 @@ def generate_cv(applicant_name):
 
     return {
         "cv_record": cv_record.name,
-        "file_url":  saved_file.file_url,
+        "file_url":  r2_url or saved_file.file_url,
+        "r2_url":    r2_url,
         "message":   f"CV generated successfully: {cv_record.name}",
     }
 

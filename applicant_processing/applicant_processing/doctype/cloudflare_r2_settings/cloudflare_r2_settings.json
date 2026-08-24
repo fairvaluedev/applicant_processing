@@ -1,0 +1,149 @@
+{
+ "actions": [],
+ "creation": "2026-08-24 14:35:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "r2_config_section",
+  "enabled",
+  "account_id",
+  "bucket_name",
+  "col_break_r2",
+  "access_key_id",
+  "secret_access_key",
+  "public_domain",
+  "sync_section",
+  "sync_cv_pdfs",
+  "sync_applicant_photos",
+  "sync_contracts",
+  "col_break_sync",
+  "auto_sync_on_upload",
+  "use_presigned_for_private",
+  "test_connection_section",
+  "test_status"
+ ],
+ "fields": [
+  {
+   "fieldname": "r2_config_section",
+   "fieldtype": "Section Break",
+   "label": "Cloudflare R2 Credentials"
+  },
+  {
+   "default": "0",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Enable Cloudflare R2 Storage"
+  },
+  {
+   "depends_on": "eval:doc.enabled==1",
+   "fieldname": "account_id",
+   "fieldtype": "Data",
+   "label": "Cloudflare Account ID",
+   "mandatory_depends_on": "eval:doc.enabled==1"
+  },
+  {
+   "depends_on": "eval:doc.enabled==1",
+   "fieldname": "bucket_name",
+   "fieldtype": "Data",
+   "label": "R2 Bucket Name",
+   "mandatory_depends_on": "eval:doc.enabled==1"
+  },
+  {
+   "fieldname": "col_break_r2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.enabled==1",
+   "fieldname": "access_key_id",
+   "fieldtype": "Data",
+   "label": "R2 Access Key ID",
+   "mandatory_depends_on": "eval:doc.enabled==1"
+  },
+  {
+   "depends_on": "eval:doc.enabled==1",
+   "fieldname": "secret_access_key",
+   "fieldtype": "Password",
+   "label": "R2 Secret Access Key",
+   "mandatory_depends_on": "eval:doc.enabled==1"
+  },
+  {
+   "description": "Public R2 CDN URL e.g. https://pub-xxxx.r2.dev or custom domain https://media.yourdomain.com",
+   "fieldname": "public_domain",
+   "fieldtype": "Data",
+   "label": "Public Domain / CDN Endpoint"
+  },
+  {
+   "fieldname": "sync_section",
+   "fieldtype": "Section Break",
+   "label": "Sync & Automation Preferences"
+  },
+  {
+   "default": "1",
+   "fieldname": "sync_cv_pdfs",
+   "fieldtype": "Check",
+   "label": "Automatically upload generated CV PDFs to R2"
+  },
+  {
+   "default": "1",
+   "fieldname": "sync_applicant_photos",
+   "fieldtype": "Check",
+   "label": "Automatically upload Applicant photos & passport scans to R2"
+  },
+  {
+   "default": "1",
+   "fieldname": "sync_contracts",
+   "fieldtype": "Check",
+   "label": "Automatically upload Contract documents to R2"
+  },
+  {
+   "fieldname": "col_break_sync",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "auto_sync_on_upload",
+   "fieldtype": "Check",
+   "label": "Auto-sync on File Upload hook"
+  },
+  {
+   "default": "0",
+   "fieldname": "use_presigned_for_private",
+   "fieldtype": "Check",
+   "label": "Generate Pre-signed URLs for private documents"
+  },
+  {
+   "fieldname": "test_connection_section",
+   "fieldtype": "Section Break",
+   "label": "Connection Test"
+  },
+  {
+   "fieldname": "test_status",
+   "fieldtype": "Small Text",
+   "label": "Test Result",
+   "read_only": 1
+  }
+ ],
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-08-24 14:35:00.000000",
+ "modified_by": "Administrator",
+ "module": "Applicant Processing",
+ "name": "Cloudflare R2 Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

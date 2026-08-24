@@ -951,6 +951,18 @@ def parse_contract_document(file_url=None, dossier_name=None, raw_text=None):
             except Exception as e:
                 frappe.log_error(f"Failed to update applicant state for {applicant}: {e}", "Dossier Contract Parse")
 
+        # Notify frontend client in realtime
+        try:
+            from applicant_processing.applicant_processing.utils.r2_storage import notify_frontend
+            notify_frontend("contract_parsed", {
+                "dossier_name": dossier_name,
+                "applicant": applicant,
+                "updated_fields": updated_fields,
+                "data": extracted_data,
+            })
+        except Exception:
+            pass
+
     return {
         "status": "success",
         "message": f"Contract parsed successfully. Updated fields: {', '.join(updated_fields) if updated_fields else 'None'}",
