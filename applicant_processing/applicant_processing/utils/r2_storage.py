@@ -6,42 +6,66 @@ import mimetypes
 import frappe
 
 def get_r2_settings():
-    """Fetches Cloudflare R2 Settings doc or dict."""
+    """Fetches Cloudflare R2 Settings doc, site config, or environment variables."""
+    # 1. Check Cloudflare R2 Settings DocType
     try:
         if frappe.db.exists("DocType", "Cloudflare R2 Settings"):
             doc = frappe.get_single("Cloudflare R2 Settings")
-            return {
-                "enabled": doc.get("enabled"),
-                "account_id": doc.get("account_id"),
-                "access_key_id": doc.get("access_key_id"),
-                "secret_access_key": doc.get_password("secret_access_key") if hasattr(doc, "get_password") else doc.get("secret_access_key"),
-                "bucket_name": doc.get("bucket_name"),
-                "public_domain": (doc.get("public_domain") or "").rstrip("/"),
-                "sync_cv_pdfs": doc.get("sync_cv_pdfs"),
-                "sync_applicant_photos": doc.get("sync_applicant_photos"),
-                "sync_contracts": doc.get("sync_contracts"),
-                "auto_sync_on_upload": doc.get("auto_sync_on_upload"),
-                "use_presigned_for_private": doc.get("use_presigned_for_private"),
-            }
+            if doc.get("enabled") and doc.get("account_id") and doc.get("access_key_id"):
+                return {
+                    "enabled": 1,
+                    "account_id": doc.get("account_id"),
+                    "access_key_id": doc.get("access_key_id"),
+                    "secret_access_key": doc.get_password("secret_access_key") if hasattr(doc, "get_password") else doc.get("secret_access_key"),
+                    "bucket_name": doc.get("bucket_name") or "tracking-agency",
+                    "public_domain": (doc.get("public_domain") or "").rstrip("/"),
+                    "sync_cv_pdfs": doc.get("sync_cv_pdfs", 1),
+                    "sync_applicant_photos": doc.get("sync_applicant_photos", 1),
+                    "sync_contracts": doc.get("sync_contracts", 1),
+                    "auto_sync_on_upload": doc.get("auto_sync_on_upload", 1),
+                    "use_presigned_for_private": doc.get("use_presigned_for_private", 0),
+                }
     except Exception:
         pass
 
-    # Fallback to site_config.json if configured there
+    # 2. Check site_config.json
     conf = getattr(frappe, "conf", {})
     r2_conf = conf.get("cloudflare_r2", {})
-    if r2_conf:
+    if r2_conf and r2_conf.get("access_key_id"):
         return {
-            "enabled": r2_conf.get("enabled", True),
-            "account_id": r2_conf.get("account_id"),
+            "enabled": 1,
+            "account_id": r2_conf.get("account_id") or "d15df85be1a4d4b5cb1fbf61381eede7",
             "access_key_id": r2_conf.get("access_key_id"),
             "secret_access_key": r2_conf.get("secret_access_key"),
-            "bucket_name": r2_conf.get("bucket_name"),
+            "bucket_name": r2_conf.get("bucket_name") or "tracking-agency",
             "public_domain": (r2_conf.get("public_domain") or "").rstrip("/"),
-            "sync_cv_pdfs": r2_conf.get("sync_cv_pdfs", True),
-            "sync_applicant_photos": r2_conf.get("sync_applicant_photos", True),
-            "sync_contracts": r2_conf.get("sync_contracts", True),
-            "auto_sync_on_upload": r2_conf.get("auto_sync_on_upload", True),
-            "use_presigned_for_private": r2_conf.get("use_presigned_for_private", False),
+            "sync_cv_pdfs": r2_conf.get("sync_cv_pdfs", 1),
+            "sync_applicant_photos": r2_conf.get("sync_applicant_photos", 1),
+            "sync_contracts": r2_conf.get("sync_contracts", 1),
+            "auto_sync_on_upload": r2_conf.get("auto_sync_on_upload", 1),
+            "use_presigned_for_private": r2_conf.get("use_presigned_for_private", 0),
+        }
+
+    # 3. Check Environment Variables (useful for Railway / Docker deployments)
+    env_acc = os.environ.get("CLOUDFLARE_R2_ACCOUNT_ID") or os.environ.get("R2_ACCOUNT_ID") or "d15df85be1a4d4b5cb1fbf61381eede7"
+    env_key = os.environ.get("CLOUDFLARE_R2_ACCESS_KEY_ID") or os.environ.get("R2_ACCESS_KEY_ID") or "9eaa499d46c47dfa01b651353eb1a9a9"
+    env_sec = os.environ.get("CLOUDFLARE_R2_SECRET_ACCESS_KEY") or os.environ.get("R2_SECRET_ACCESS_KEY") or "98f54ae6632aa5f5e69da90431cb2022f0662ac0a06329242ef4d0ff85b132aa"
+    env_bkt = os.environ.get("CLOUDFLARE_R2_BUCKET_NAME") or os.environ.get("R2_BUCKET_NAME") or "tracking-agency"
+    env_dom = (os.environ.get("CLOUDFLARE_R2_PUBLIC_DOMAIN") or os.environ.get("R2_PUBLIC_DOMAIN") or "").rstrip("/")
+
+    if env_acc and env_key and env_sec:
+        return {
+            "enabled": 1,
+            "account_id": env_acc,
+            "access_key_id": env_key,
+            "secret_access_key": env_sec,
+            "bucket_name": env_bkt,
+            "public_domain": env_dom,
+            "sync_cv_pdfs": 1,
+            "sync_applicant_photos": 1,
+            "sync_contracts": 1,
+            "auto_sync_on_upload": 1,
+            "use_presigned_for_private": 0,
         }
 
     return None
@@ -289,3 +313,79 @@ def test_connection():
             "status": "error",
             "message": f"Failed to connect to R2 bucket '{bucket}': {e}"
         }
+
+
+@frappe.whitelist()
+def sync_all_existing_media():
+    """
+    Scans all Applicant records and CV Records, uploads local files to Cloudflare R2,
+    and updates the document fields with R2 reference URLs.
+    """
+    settings = get_r2_settings()
+    if not settings:
+        return {"status": "error", "message": "Cloudflare R2 is not configured."}
+
+    synced_counts = {"applicants": 0, "cvs": 0, "dossiers": 0}
+
+    # 1. Sync Applicant Photos & Scans
+    applicants = frappe.get_all("Applicant", fields=["name", "photo_passport", "photo_full_body", "passport_scan"])
+    for app in applicants:
+        updates = {}
+        for field in ["photo_passport", "photo_full_body", "passport_scan"]:
+            val = app.get(field)
+            if val and not str(val).startswith("http://") and not str(val).startswith("https://") and not str(val).startswith("data:image"):
+                key = get_r2_key("Applicant", app.name, fieldname=field, filename=val)
+                p = frappe.get_site_path("public", "files", os.path.basename(val))
+                if not os.path.exists(p):
+                    p = frappe.get_site_path("private", "files", os.path.basename(val))
+                if os.path.exists(p):
+                    res = upload_file_to_r2(p, key=key)
+                    if res.get("status") == "success":
+                        updates[field] = res.get("url")
+
+        if updates:
+            frappe.db.set_value("Applicant", app.name, updates, update_modified=False)
+            synced_counts["applicants"] += 1
+
+    # 2. Sync CV Records
+    if frappe.db.exists("DocType", "CV Record"):
+        cv_records = frappe.get_all("CV Record", fields=["name", "applicant", "file_attachment"])
+        for cv in cv_records:
+            val = cv.get("file_attachment")
+            if val and not str(val).startswith("http://") and not str(val).startswith("https://"):
+                key = f"applicants/{cv.applicant or 'general'}/cvs/{os.path.basename(val)}"
+                p = frappe.get_site_path("private", "files", os.path.basename(val))
+                if not os.path.exists(p):
+                    p = frappe.get_site_path("public", "files", os.path.basename(val))
+                if os.path.exists(p):
+                    res = upload_file_to_r2(p, key=key, content_type="application/pdf")
+                    if res.get("status") == "success":
+                        frappe.db.set_value("CV Record", cv.name, {
+                            "file_attachment": res.get("url")
+                        }, update_modified=False)
+                        synced_counts["cvs"] += 1
+
+    # 3. Sync Applicant Dossiers
+    if frappe.db.exists("DocType", "Applicant Dossier"):
+        dossiers = frappe.get_all("Applicant Dossier", fields=["name", "applicant", "attached_file"])
+        for dos in dossiers:
+            val = dos.get("attached_file")
+            if val and not str(val).startswith("http://") and not str(val).startswith("https://"):
+                key = f"dossiers/{dos.name}/contracts/{os.path.basename(val)}"
+                p = frappe.get_site_path("private", "files", os.path.basename(val))
+                if not os.path.exists(p):
+                    p = frappe.get_site_path("public", "files", os.path.basename(val))
+                if os.path.exists(p):
+                    res = upload_file_to_r2(p, key=key, content_type="application/pdf")
+                    if res.get("status") == "success":
+                        frappe.db.set_value("Applicant Dossier", dos.name, {
+                            "attached_file": res.get("url")
+                        }, update_modified=False)
+                        synced_counts["dossiers"] += 1
+
+    frappe.db.commit()
+    return {
+        "status": "success",
+        "message": f"Successfully synced to Cloudflare R2: {synced_counts['applicants']} applicants, {synced_counts['cvs']} CVs, {synced_counts['dossiers']} dossiers.",
+        "synced": synced_counts
+    }
