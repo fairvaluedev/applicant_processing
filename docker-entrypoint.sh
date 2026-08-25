@@ -246,6 +246,9 @@ EOF
   fi
 fi
 
+export SITES_PATH="/home/frappe/frappe-bench/sites"
+printf "frappe\napplicant_processing\n" > /home/frappe/frappe-bench/sites/apps.txt
+
 # Ensure default site is set in currentsite.txt
 echo "$SITE_NAME" > currentsite.txt
 echo "$SITE_NAME" > /home/frappe/frappe-bench/sites/currentsite.txt
@@ -257,10 +260,21 @@ for ALIAS in "$DETECTED_DOMAIN" "localhost" "127.0.0.1" "0.0.0.0"; do
   fi
 done
 
-# Ensure frontend static assets are available
-if [ ! -f "assets/assets.json" ] || [ ! -d "assets/frappe" ]; then
+# Ensure frontend static assets are always available in sites/assets
+mkdir -p /home/frappe/frappe-bench/sites/assets
+if [ -d "/home/frappe/assets_dist" ]; then
+  echo "Syncing prebuilt frontend static assets to sites/assets..."
+  cp -rn /home/frappe/assets_dist/* /home/frappe/frappe-bench/sites/assets/ 2>/dev/null || cp -r /home/frappe/assets_dist/* /home/frappe/frappe-bench/sites/assets/ 2>/dev/null || true
+fi
+
+# Ensure direct symlinks to app public assets
+ln -sfn /home/frappe/frappe-bench/apps/frappe/frappe/public /home/frappe/frappe-bench/sites/assets/frappe 2>/dev/null || true
+ln -sfn /home/frappe/frappe-bench/apps/applicant_processing/applicant_processing/public /home/frappe/frappe-bench/sites/assets/applicant_processing 2>/dev/null || true
+
+# Rebuild assets if manifest is still not found
+if [ ! -f "/home/frappe/frappe-bench/sites/assets/assets.json" ]; then
   echo "Assets manifest not found. Building and linking frontend assets..."
-  ../env/bin/python -m frappe.utils.bench_helper frappe build || true
+  cd /home/frappe/frappe-bench/sites && ../env/bin/python -m frappe.utils.bench_helper frappe build || true
 fi
 
 echo "=========================================================="

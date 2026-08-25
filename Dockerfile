@@ -62,8 +62,10 @@ USER root
 RUN chmod +x /home/frappe/docker-entrypoint.sh
 USER frappe
 
-# 7. Build production static assets for Frappe core and apps
-RUN cd sites && ../env/bin/python -m frappe.utils.bench_helper frappe build
+# 7. Build production static assets for Frappe core and apps and cache a distribution copy
+RUN cd sites && ../env/bin/python -m frappe.utils.bench_helper frappe build \
+    && mkdir -p /home/frappe/assets_dist \
+    && cp -r /home/frappe/frappe-bench/sites/assets/* /home/frappe/assets_dist/
 
 EXPOSE 8000
 
