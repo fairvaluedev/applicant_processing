@@ -1,9 +1,9 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Applicant Processing API & Integration Contract",
-    "description": "Authoritative machine-readable API contract for Frontend-Backend integration with the Frappe Applicant Processing system.",
-    "version": "1.2.0"
+    "title": "Applicant Processing API Specification",
+    "description": "Comprehensive, authoritative machine-readable API specification for Frontend-Backend integration across all custom RPC endpoints and standard Frappe REST resource paths.",
+    "version": "1.3.0"
   },
   "servers": [
     {
@@ -21,45 +21,26 @@
     }
   ],
   "components": {
-    "responses": {
-      "ValidationError": {
-        "description": "Validation Error (417)",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/FrappeErrorEnvelope"
-            }
-          }
-        }
-      }
-    },
     "securitySchemes": {
       "TokenAuth": {
         "type": "apiKey",
         "in": "header",
         "name": "Authorization",
         "description": "Format: token <api_key>:<api_secret>"
+      },
+      "CookieAuth": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "sid",
+        "description": "Standard Frappe session cookie obtained via /api/method/login"
       }
     },
     "schemas": {
-      "Applicant": {
+      "FrappeEnvelope": {
         "type": "object",
         "properties": {
-          "name": {
-            "type": "string"
-          },
-          "first_name": {
-            "type": "string"
-          },
-          "last_name": {
-            "type": "string"
-          },
-          "medical_expiry_date": {
-            "type": "string",
-            "format": "date"
-          },
-          "applicant_state": {
-            "type": "string"
+          "message": {
+            "type": "object"
           }
         }
       },
@@ -72,8 +53,539 @@
           "exc_type": {
             "type": "string"
           },
+          "_server_messages": {
+            "type": "string"
+          },
           "message": {
             "type": "string"
+          }
+        }
+      },
+      "Applicant": {
+        "type": "object",
+        "required": [
+          "first_name",
+          "last_name",
+          "date_of_birth",
+          "nationality",
+          "gender",
+          "phone_number"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "readOnly": true,
+            "example": "APP-00011"
+          },
+          "applicant_type": {
+            "type": "string",
+            "enum": [
+              "Standard",
+              "Muayena"
+            ],
+            "default": "Standard"
+          },
+          "destination_country": {
+            "type": "string",
+            "default": "Saudi Arabia"
+          },
+          "first_name": {
+            "type": "string",
+            "example": "FATIMA"
+          },
+          "middle_name": {
+            "type": "string",
+            "example": "AHMED"
+          },
+          "last_name": {
+            "type": "string",
+            "example": "MOHAMMED"
+          },
+          "full_name": {
+            "type": "string",
+            "readOnly": true,
+            "example": "FATIMA AHMED MOHAMMED"
+          },
+          "gender": {
+            "type": "string",
+            "enum": [
+              "Female",
+              "Male"
+            ],
+            "default": "Female"
+          },
+          "date_of_birth": {
+            "type": "string",
+            "format": "date",
+            "example": "1998-05-14"
+          },
+          "age": {
+            "type": "integer",
+            "readOnly": true,
+            "example": 28
+          },
+          "place_of_birth": {
+            "type": "string",
+            "example": "ADDIS ABABA"
+          },
+          "leaving_town": {
+            "type": "string",
+            "example": "JIMMA"
+          },
+          "nationality": {
+            "type": "string",
+            "default": "Ethiopia"
+          },
+          "religion": {
+            "type": "string",
+            "enum": [
+              "Muslim",
+              "Non-Muslim",
+              "Christian",
+              "Other"
+            ],
+            "default": "Muslim"
+          },
+          "marital_status": {
+            "type": "string",
+            "enum": [
+              "Single",
+              "Married",
+              "Divorced",
+              "Widowed"
+            ],
+            "default": "Single"
+          },
+          "children": {
+            "type": "integer",
+            "default": 0
+          },
+          "height": {
+            "type": "string",
+            "example": "162 cm"
+          },
+          "weight": {
+            "type": "string",
+            "example": "56 kg"
+          },
+          "complexion": {
+            "type": "string",
+            "enum": [
+              "FAIR",
+              "MEDIUM",
+              "DARK"
+            ]
+          },
+          "passport_number": {
+            "type": "string",
+            "example": "EP1234567"
+          },
+          "passport_issue_date": {
+            "type": "string",
+            "format": "date",
+            "example": "2024-01-10"
+          },
+          "passport_expiry": {
+            "type": "string",
+            "format": "date",
+            "example": "2029-01-09"
+          },
+          "place_of_issue": {
+            "type": "string",
+            "default": "ADDIS ABABA"
+          },
+          "photo_passport": {
+            "type": "string",
+            "description": "Cloudflare R2 CDN URL or upload path"
+          },
+          "photo_full_body": {
+            "type": "string",
+            "description": "Cloudflare R2 CDN URL or upload path"
+          },
+          "passport_scan": {
+            "type": "string",
+            "description": "Cloudflare R2 CDN URL or upload path"
+          },
+          "job_applied": {
+            "type": "string",
+            "default": "House Maid"
+          },
+          "monthly_salary": {
+            "type": "string",
+            "default": "1,000 SR"
+          },
+          "medical_status": {
+            "type": "string",
+            "enum": [
+              "Pending",
+              "FIT",
+              "UNFIT",
+              "Expired"
+            ],
+            "default": "Pending"
+          },
+          "medical_issue_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "medical_expiry_date": {
+            "type": "string",
+            "format": "date",
+            "description": "Authoritative date field for medical certificate validity"
+          },
+          "applicant_state": {
+            "type": "string",
+            "readOnly": true,
+            "enum": [
+              "Draft",
+              "Registered",
+              "CV Generated",
+              "Request Pending",
+              "Selected",
+              "Processing",
+              "Stamped",
+              "Ticketed",
+              "Departed",
+              "Cancelled"
+            ],
+            "example": "Registered"
+          },
+          "state_step": {
+            "type": "string",
+            "readOnly": true,
+            "example": "2 of 9"
+          },
+          "state_progress": {
+            "type": "number",
+            "readOnly": true,
+            "example": 22.2
+          },
+          "locked_contractor": {
+            "type": "string",
+            "readOnly": true,
+            "example": "AL-SAFWA RECRUITMENT"
+          },
+          "locked_at": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true
+          }
+        }
+      },
+      "ApplicantDossier": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "readOnly": true,
+            "example": "DOSSIER-00011"
+          },
+          "applicant": {
+            "type": "string",
+            "required": true,
+            "example": "APP-00011"
+          },
+          "attached_file": {
+            "type": "string",
+            "description": "Uploaded Contract PDF URL"
+          },
+          "contract_number": {
+            "type": "string",
+            "example": "2005450415"
+          },
+          "visa_number": {
+            "type": "string",
+            "example": "1908334046"
+          },
+          "sponsor_name": {
+            "type": "string",
+            "example": "ABDULLAH AL-OTAIBI"
+          },
+          "sponsor_id": {
+            "type": "string",
+            "example": "1098765432"
+          },
+          "telephone": {
+            "type": "string",
+            "example": "0501234567"
+          },
+          "contractor_name": {
+            "type": "string",
+            "example": "AL-SAFWA RECRUITMENT"
+          },
+          "agency": {
+            "type": "string",
+            "example": "ETHIOPIAN TALENT AGENCY"
+          },
+          "profession": {
+            "type": "string",
+            "example": "Housemaid"
+          },
+          "amount_detail": {
+            "type": "number",
+            "example": 1000.0
+          },
+          "contract_duration": {
+            "type": "string",
+            "example": "2 Years"
+          },
+          "is_parsed": {
+            "type": "integer",
+            "enum": [
+              0,
+              1
+            ],
+            "readOnly": true
+          }
+        }
+      },
+      "DSR": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "readOnly": true,
+            "example": "DSR-00011"
+          },
+          "applicant_dossier": {
+            "type": "string",
+            "required": true,
+            "example": "DOSSIER-00011"
+          },
+          "full_name": {
+            "type": "string",
+            "readOnly": true
+          },
+          "passport_number": {
+            "type": "string",
+            "readOnly": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "Active",
+              "Completed",
+              "Cancelled"
+            ],
+            "default": "Active"
+          }
+        }
+      },
+      "LMSClearance": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "readOnly": true,
+            "example": "LMS-00011"
+          },
+          "dsr": {
+            "type": "string",
+            "required": true,
+            "example": "DSR-00011"
+          },
+          "applicant_dossier": {
+            "type": "string",
+            "readOnly": true,
+            "example": "DOSSIER-00011"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "Pending",
+              "Issued",
+              "Rejected"
+            ],
+            "default": "Pending"
+          },
+          "issued_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "employee": {
+            "type": "string",
+            "description": "User email of assigned LMS Officer",
+            "example": "lms_officer@agency.com"
+          }
+        }
+      },
+      "InjazClearance": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "readOnly": true,
+            "example": "INJ-00011"
+          },
+          "dsr": {
+            "type": "string",
+            "required": true,
+            "example": "DSR-00011"
+          },
+          "applicant_dossier": {
+            "type": "string",
+            "readOnly": true,
+            "example": "DOSSIER-00011"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "Pending",
+              "Completed"
+            ],
+            "default": "Pending"
+          },
+          "employee": {
+            "type": "string",
+            "description": "User email of assigned Injaz Officer",
+            "example": "injaz_officer@agency.com"
+          }
+        }
+      },
+      "WakalaClearance": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "readOnly": true,
+            "example": "WAK-00011"
+          },
+          "dsr": {
+            "type": "string",
+            "required": true,
+            "example": "DSR-00011"
+          },
+          "applicant_dossier": {
+            "type": "string",
+            "readOnly": true,
+            "example": "DOSSIER-00011"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "Pending",
+              "Completed"
+            ],
+            "default": "Pending"
+          },
+          "employee": {
+            "type": "string",
+            "description": "User email of assigned Wakala Officer",
+            "example": "wakala_officer@agency.com"
+          }
+        }
+      },
+      "DSRStamp": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "readOnly": true,
+            "example": "STAMP-00011"
+          },
+          "dsr": {
+            "type": "string",
+            "required": true,
+            "example": "DSR-00011"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "Pending",
+              "Completed"
+            ],
+            "default": "Pending"
+          },
+          "stamp_number": {
+            "type": "string",
+            "example": "V-998877"
+          },
+          "stamp_date": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-08-20"
+          }
+        }
+      },
+      "DSRTicket": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "readOnly": true,
+            "example": "TKT-00011"
+          },
+          "dsr": {
+            "type": "string",
+            "required": true,
+            "example": "DSR-00011"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "Pending",
+              "Booked",
+              "Cancelled"
+            ],
+            "default": "Pending"
+          },
+          "ticket_number": {
+            "type": "string",
+            "example": "ET-07012345"
+          },
+          "airline": {
+            "type": "string",
+            "example": "Ethiopian Airlines"
+          },
+          "flight_number": {
+            "type": "string",
+            "example": "ET402"
+          },
+          "flight_date": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-09-01"
+          },
+          "route": {
+            "type": "string",
+            "example": "ADD-RUH"
+          }
+        }
+      },
+      "DSRDeparture": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "readOnly": true,
+            "example": "DEP-00011"
+          },
+          "dsr": {
+            "type": "string",
+            "required": true,
+            "example": "DSR-00011"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "Pending",
+              "Departed",
+              "Cancelled"
+            ],
+            "default": "Pending"
+          },
+          "departure_time": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-09-01T23:30:00Z"
+          },
+          "medical_2_result": {
+            "type": "string",
+            "enum": [
+              "Pass",
+              "Fail"
+            ],
+            "default": "Pass"
           }
         }
       }
@@ -99,7 +611,7 @@
             "schema": {
               "type": "string"
             },
-            "example": "[\"name\",\"first_name\",\"last_name\",\"applicant_state\",\"medical_status\"]"
+            "example": "[\"name\",\"first_name\",\"last_name\",\"applicant_state\",\"medical_status\",\"photo_passport\"]"
           },
           {
             "name": "filters",
@@ -123,6 +635,14 @@
             "schema": {
               "type": "integer",
               "default": 20
+            }
+          },
+          {
+            "name": "order_by",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "default": "modified desc"
             }
           }
         ],
@@ -148,7 +668,7 @@
         }
       },
       "post": {
-        "summary": "Create Applicant",
+        "summary": "Create Applicant (Draft)",
         "requestBody": {
           "required": true,
           "content": {
@@ -164,7 +684,7 @@
             "description": "Applicant created successfully"
           },
           "417": {
-            "$ref": "#/components/responses/ValidationError"
+            "description": "Validation Error"
           }
         }
       }
@@ -223,7 +743,7 @@
     "/api/method/applicant_processing.applicant_processing.doctype.applicant.applicant.register_applicant": {
       "post": {
         "summary": "Register Applicant",
-        "description": "Validates biodata and advances applicant state from Draft to Registered",
+        "description": "Validates biodata and advances applicant state from Draft to Registered (Step 2 of 9)",
         "requestBody": {
           "required": true,
           "content": {
@@ -236,7 +756,7 @@
                 "properties": {
                   "applicant_name": {
                     "type": "string",
-                    "example": "APP-00001"
+                    "example": "APP-00011"
                   }
                 }
               }
@@ -248,7 +768,7 @@
             "description": "Applicant registered successfully"
           },
           "417": {
-            "description": "Validation failure (e.g. Medical Status is UNFIT)"
+            "description": "Validation failure (e.g. Medical Status is UNFIT or missing mandatory fields)"
           }
         }
       }
@@ -256,7 +776,7 @@
     "/api/method/applicant_processing.applicant_processing.doctype.applicant.applicant.generate_cv": {
       "post": {
         "summary": "Generate CV PDF & Sync to Cloudflare R2",
-        "description": "Renders bilingual 2-page CV PDF with embedded photos, stores in Cloudflare R2 bucket, and emits realtime cv_generated socket event.",
+        "description": "Renders bilingual 2-page CV PDF with embedded photos, stores in Cloudflare R2 bucket, updates CV Record, and emits realtime cv_generated socket event.",
         "requestBody": {
           "required": true,
           "content": {
@@ -269,7 +789,7 @@
                 "properties": {
                   "applicant_name": {
                     "type": "string",
-                    "example": "APP-00001"
+                    "example": "APP-00011"
                   }
                 }
               }
@@ -289,11 +809,11 @@
                       "properties": {
                         "cv_record": {
                           "type": "string",
-                          "example": "CV-00001"
+                          "example": "CV-00011"
                         },
                         "file_url": {
                           "type": "string",
-                          "example": "https://tracking-agency...r2.../cvs/CV-APP-00001-CV-00001.pdf"
+                          "example": "https://tracking-agency...r2.cloudflarestorage.com/applicants/APP-00011/cvs/CV-APP-00011-CV-00011.pdf"
                         },
                         "r2_url": {
                           "type": "string"
@@ -311,10 +831,120 @@
         }
       }
     },
+    "/api/method/applicant_processing.applicant_processing.doctype.applicant.applicant.cancel_applicant": {
+      "post": {
+        "summary": "Cancel Applicant",
+        "description": "Marks applicant state as Cancelled with audit trail (cancelled_at, cancelled_by, cancel_remarks). Blocked if applicant is Departed.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "applicant_name"
+                ],
+                "properties": {
+                  "applicant_name": {
+                    "type": "string",
+                    "example": "APP-00011"
+                  },
+                  "cancel_remarks": {
+                    "type": "string",
+                    "example": "Applicant withdrew application"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applicant cancelled successfully"
+          },
+          "417": {
+            "description": "Cannot cancel departed applicant"
+          }
+        }
+      }
+    },
+    "/api/method/applicant_processing.applicant_processing.doctype.applicant.applicant.restore_applicant": {
+      "post": {
+        "summary": "Restore Cancelled Applicant",
+        "description": "Restores a Cancelled applicant back to active lifecycle pipeline.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "applicant_name"
+                ],
+                "properties": {
+                  "applicant_name": {
+                    "type": "string",
+                    "example": "APP-00011"
+                  },
+                  "restore_option": {
+                    "type": "string",
+                    "enum": [
+                      "auto",
+                      "registered",
+                      "draft"
+                    ],
+                    "default": "auto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applicant restored successfully"
+          }
+        }
+      }
+    },
+    "/api/method/applicant_processing.applicant_processing.doctype.applicant.applicant.scan_and_populate_passport": {
+      "post": {
+        "summary": "OCR Scan Passport & Parse MRZ",
+        "description": "Runs ICAO 9303 MRZ scanner on passport image and automatically populates passport_number, date_of_birth, passport_expiry, nationality, gender onto Applicant record.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "applicant_name": {
+                    "type": "string",
+                    "example": "APP-00011"
+                  },
+                  "file_url": {
+                    "type": "string",
+                    "example": "/files/passport_scan.jpg"
+                  },
+                  "raw_mrz_text": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Passport scanned and populated successfully"
+          }
+        }
+      }
+    },
     "/api/method/applicant_processing.applicant_processing.utils.contract_parser.parse_contract_document": {
       "post": {
         "summary": "Parse Bilateral Saudi Contract PDF",
-        "description": "Extracts contract number, visa number, sponsor details, agency, and terms from attached PDF using PyMuPDF and updates Dossier & Applicant atomically.",
+        "description": "Extracts contract number, visa number, sponsor details, agency, and terms from attached PDF using multi-engine PyMuPDF and updates Dossier & Applicant atomically.",
         "requestBody": {
           "required": true,
           "content": {
@@ -327,7 +957,7 @@
                 "properties": {
                   "dossier_name": {
                     "type": "string",
-                    "example": "DOSSIER-00001"
+                    "example": "DOSSIER-00011"
                   }
                 }
               }
@@ -336,37 +966,267 @@
         },
         "responses": {
           "200": {
-            "description": "Contract parsed successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "object",
-                      "properties": {
-                        "status": {
-                          "type": "string",
-                          "example": "success"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "data": {
-                          "type": "object"
-                        },
-                        "updated_fields": {
-                          "type": "array",
-                          "items": {
-                            "type": "string"
-                          }
-                        }
-                      }
-                    }
+            "description": "Contract parsed successfully"
+          }
+        }
+      }
+    },
+    "/api/method/applicant_processing.applicant_processing.api.portal_select_candidate": {
+      "post": {
+        "summary": "Atomic Agency Candidate Selection",
+        "description": "Locks candidate to foreign agency using SELECT FOR UPDATE concurrency lock, creates accepted Contract Request, and sets state to Selected (Step 5 of 9).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "applicant_id"
+                ],
+                "properties": {
+                  "applicant_id": {
+                    "type": "string",
+                    "example": "APP-00011"
+                  },
+                  "contractor": {
+                    "type": "string",
+                    "example": "AL-SAFWA RECRUITMENT"
                   }
                 }
               }
             }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Candidate selected and locked successfully"
+          },
+          "409": {
+            "description": "Candidate already selected by another agency"
+          }
+        }
+      }
+    },
+    "/api/method/applicant_processing.applicant_processing.api.portal_release_candidate": {
+      "post": {
+        "summary": "Release Agency Candidate Selection Lock",
+        "description": "Releases foreign agency reservation lock and returns candidate to available talent pool.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "applicant_id"
+                ],
+                "properties": {
+                  "applicant_id": {
+                    "type": "string",
+                    "example": "APP-00011"
+                  },
+                  "contractor": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Candidate lock released successfully"
+          }
+        }
+      }
+    },
+    "/api/method/applicant_processing.applicant_processing.api.get_agency_pipeline_candidates": {
+      "get": {
+        "summary": "Get Agency Partner Pipeline Candidates",
+        "parameters": [
+          {
+            "name": "contractor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "stage",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "default": "all"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of pipeline candidates with contract, ticket, and flight status"
+          }
+        }
+      }
+    },
+    "/api/method/applicant_processing.applicant_processing.api.batch_medical_update": {
+      "post": {
+        "summary": "Batch Medical Status Update",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "applicant_names",
+                  "medical_status"
+                ],
+                "properties": {
+                  "applicant_names": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "example": [
+                      "APP-00011",
+                      "APP-00012"
+                    ]
+                  },
+                  "medical_status": {
+                    "type": "string",
+                    "enum": [
+                      "Pending",
+                      "FIT",
+                      "UNFIT",
+                      "Expired"
+                    ]
+                  },
+                  "issue_date": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "expiry_date": {
+                    "type": "string",
+                    "format": "date"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Medical status updated in bulk"
+          }
+        }
+      }
+    },
+    "/api/method/applicant_processing.applicant_processing.api.batch_lms_status_update": {
+      "post": {
+        "summary": "Batch LMS Status Update",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "dsr_names",
+                  "lms_status"
+                ],
+                "properties": {
+                  "dsr_names": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "example": [
+                      "DSR-00011"
+                    ]
+                  },
+                  "lms_status": {
+                    "type": "string",
+                    "enum": [
+                      "Pending",
+                      "Issued",
+                      "Rejected"
+                    ]
+                  },
+                  "remarks": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "LMS clearance status updated in bulk"
+          }
+        }
+      }
+    },
+    "/api/method/applicant_processing.applicant_processing.api.batch_flight_reschedule": {
+      "post": {
+        "summary": "Batch Flight Reschedule",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "applicant_names",
+                  "new_flight_date"
+                ],
+                "properties": {
+                  "applicant_names": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "new_flight_date": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "airline": {
+                    "type": "string"
+                  },
+                  "route": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Flights rescheduled in bulk"
+          }
+        }
+      }
+    },
+    "/api/method/applicant_processing.applicant_processing.utils.r2_storage.sync_all_existing_media": {
+      "post": {
+        "summary": "Trigger Cloudflare R2 Media & Document Sync",
+        "description": "Uploads existing applicant photos, passport scans, contract PDFs, and CVs to Cloudflare R2 bucket and updates document reference URLs.",
+        "responses": {
+          "200": {
+            "description": "Media synced to Cloudflare R2 successfully"
           }
         }
       }

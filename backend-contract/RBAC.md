@@ -1,16 +1,17 @@
 # Role-Based Access Control (RBAC) & Permissions Matrix
 
-## 1. Production Roles
+## 1. Deployed Production Roles
 
-The backend defines the following core business roles in Frappe:
+The backend defines the following active roles:
 
 1. **`System Manager` / `Administrator`**: Full platform control across all settings, DocTypes, and API methods.
-2. **`Agency Admin`**: Full operational visibility across applicants, dossiers, clearances, accounting, and reports.
-3. **`Recruiter` / `Intake Officer`**: Permissions to register applicants, edit biodata, upload passport photos, and generate CVs.
-4. **`Clearance Officer`**: Permissions to review dossiers, manage DSR records, update LMS/Wakala/Injaz/Embassy clearance statuses, and attach tickets.
-5. **`Accounts Officer`**: Permissions to record applicant fees, view financial ledgers, and manage Income Expense logs.
-6. **`Applicant Viewer` / `Auditor`**: Read-only access to applicant records and operational summaries.
-7. **`Guest`**: Restricted to public web portal endpoints (e.g. `/api/method/applicant_processing.applicant_processing.api.get_portal_stats`).
+2. **`Foreign Agency`**: External partner recruitment agencies (Musaned / Saudi agencies) accessing the agency portal to browse candidates, view generated CVs, and lock candidate reservations.
+3. **`LMS Employee` / `LMS Officer`**: Staff managing Labor Market approvals and GAMCA/COC missing data requests.
+4. **`Injaz Officer`**: Staff managing electronic visa applications and Injaz clearances.
+5. **`Wakala Officer`**: Staff managing Musaned Power of Attorney and contract authentication clearances.
+6. **`Accounts Manager` / `Accounts User`**: Staff managing financial transactions, applicant commission fees, and Income Expense logs.
+7. **`Desk User`**: Standard internal agency employees.
+8. **`Guest`**: Unauthenticated public endpoints.
 
 ---
 

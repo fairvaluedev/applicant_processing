@@ -1,37 +1,28 @@
 # Authoritative Lifecycle & State Machine Specification
 
-## 1. Lifecycle Overview (12 Canonical States)
+## 1. Canonical Lifecycle States (10 Enums)
 
-The `Applicant.applicant_state` field represents the single source of truth for an applicant's progression through the recruitment pipeline.
+The `Applicant.applicant_state` field represents the single source of truth for an applicant's progression through the recruitment pipeline:
 
-```mermaid
-stateDiagram-v2
-    [*] --> Draft
-    Draft --> Registered : register_applicant API
-    Registered --> CV_Generated : generate_cv API
-    CV_Generated --> Data_Complete : All required biodata fields filled
-    Data_Complete --> Selected : Contract parsed or locked_contractor assigned
-    Selected --> Dossier_Created : Applicant Dossier created
-    Dossier_Created --> LMS_Approved : LMS Clearance approved
-    LMS_Approved --> Wakala_Approved : Wakala Clearance approved
-    Wakala_Approved --> Injaz_Approved : Injaz Clearance approved
-    Injaz_Approved --> Embassy_Stamped : DSR Stamp approved
-    Embassy_Stamped --> Ticket_Issued : DSR Ticket approved
-    Ticket_Issued --> Departed : DSR Departure approved
-    Departed --> [*]
+$$\text{Draft} \longrightarrow \text{Registered} \longrightarrow \text{CV Generated} \longrightarrow \text{Request Pending} \longrightarrow \text{Selected} \longrightarrow \text{Processing} \longrightarrow \text{Stamped} \longrightarrow \text{Ticketed} \longrightarrow \text{Departed}$$
+$$\text{(or Cancelled at any stage)}$$
 
-    Draft --> Cancelled : cancel_applicant API
-    Registered --> Cancelled : cancel_applicant API
-    CV_Generated --> Cancelled : cancel_applicant API
-    Data_Complete --> Cancelled : cancel_applicant API
-    Selected --> Cancelled : cancel_applicant API
-    Dossier_Created --> Cancelled : cancel_applicant API
-    LMS_Approved --> Cancelled : cancel_applicant API
-    Wakala_Approved --> Cancelled : cancel_applicant API
-    Injaz_Approved --> Cancelled : cancel_applicant API
-    Embassy_Stamped --> Cancelled : cancel_applicant API
-    Ticket_Issued --> Cancelled : cancel_applicant API
-```
+---
+
+## 2. State Transition Matrix & Validation Rules
+
+| Step Index | State Name (`applicant_state`) | Pipeline Progress | Trigger / Action Method | Validation & Rules |
+| :---: | :--- | :---: | :--- | :--- |
+| **1 of 9** | `Draft` | `11.1%` | Initial creation via REST / Form | Initial creation floor. |
+| **2 of 9** | `Registered` | `22.2%` | `POST /api/method/...register_applicant` | • `first_name`, `last_name`, `date_of_birth`, `nationality`, `gender`, `phone_number` required.<br>• `medical_status != 'UNFIT'`. |
+| **3 of 9** | `CV Generated` | `33.3%` | `POST /api/method/...generate_cv` | • Generates 2-page PDF, embeds photos, uploads to Cloudflare R2 bucket (`tracking-agency`). |
+| **4 of 9** | `Request Pending` | `44.4%` | `POST /api/method/...send_contract_request` | Contract request sent to foreign partner agency. |
+| **5 of 9** | `Selected` | `55.6%` | `portal_select_candidate` or Dossier created | Agency locks candidate reservation or contract PDF uploaded. |
+| **6 of 9** | `Processing` | `66.7%` | Employee assigned to clearance or clearance in progress | Active clearance operations (LMS, Wakala, Injaz, Telesign, Embassy). |
+| **7 of 9** | `Stamped` | `77.8%` | `DSR Stamp` status &rarr; `Completed` | Embassy passport visa stamping completed. |
+| **8 of 9** | `Ticketed` | `88.9%` | `DSR Ticket` status &rarr; `Booked` | Flight ticket booking confirmed and attached. |
+| **9 of 9** | `Departed` | `100.0%` | `DSR Departure` status &rarr; `Departed` | Flight departure confirmed. |
+| **--** | `Cancelled` | `0.0%` | `POST /api/method/...cancel_applicant` | Records audit trail. Cannot cancel if already `Departed`. |
 
 ---
 
