@@ -296,6 +296,66 @@ def get_accounting_summary():
 
 
 @frappe.whitelist()
+def record_accounting_transaction(transaction_type, amount, description, applicant=None, date=None, source_doctype="Operational Cashflow"):
+    """
+    Records an operational financial transaction (Income or Expense) into the
+    universal accounting ledger. Links to an Applicant if provided.
+    """
+    from frappe.utils import today, flt
+    tx_date = date or today()
+    tx_amount = flt(amount)
+    tx_type = "Income" if str(transaction_type).capitalize() == "Income" else "Expense"
+
+    if tx_amount <= 0:
+        frappe.throw("Transaction amount must be greater than zero.")
+
+    if applicant and frappe.db.exists("Applicant", applicant):
+        app_doc = frappe.get_doc("Applicant", applicant)
+        app_doc.append("income_expense_logs", {
+            "doctype": "Income Expense Log",
+            "transaction_type": tx_type,
+            "amount": tx_amount,
+            "description": description or f"{tx_type} Entry",
+            "date": tx_date,
+            "source_doctype": source_doctype,
+        })
+        app_doc.save(ignore_permissions=True)
+    else:
+        # Standalone entry attached to general ledger
+        log = frappe.get_doc({
+            "doctype": "Income Expense Log",
+            "parenttype": "Applicant Processing Settings",
+            "parent": "Applicant Processing Settings",
+            "parentfield": "income_expense_logs",
+            "transaction_type": tx_type,
+            "amount": tx_amount,
+            "description": description or f"{tx_type} Entry",
+            "date": tx_date,
+            "source_doctype": source_doctype,
+        })
+        log.insert(ignore_permissions=True)
+
+    frappe.db.commit()
+    return {
+        "status": "success",
+        "message": f"Successfully recorded {tx_type} of ${tx_amount:,.2f} ({description}).",
+        "transaction": {
+            "transaction_type": tx_type,
+            "amount": tx_amount,
+            "description": description,
+            "date": str(tx_date),
+            "applicant": applicant,
+        }
+    }
+
+
+@frappe.whitelist()
+def get_operations_summary(from_date=None, to_date=None):
+    """Alias for get_daily_work_output_report."""
+    return get_daily_work_output_report(from_date=from_date, to_date=to_date)
+
+
+@frappe.whitelist()
 def sync_all_full_names():
     """
     Backfills and synchronizes full_name across all records:
