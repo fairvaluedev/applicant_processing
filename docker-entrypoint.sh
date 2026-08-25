@@ -246,11 +246,16 @@ EOF
   fi
 fi
 
-# Link any detected domain alias to the site folder
-if [ -n "$DETECTED_DOMAIN" ] && [ "$DETECTED_DOMAIN" != "$SITE_NAME" ]; then
-  echo "Creating symlink alias from $DETECTED_DOMAIN to $SITE_NAME..."
-  ln -sfn "$SITE_NAME" "$DETECTED_DOMAIN" || true
-fi
+# Ensure default site is set in currentsite.txt
+echo "$SITE_NAME" > currentsite.txt
+echo "$SITE_NAME" > /home/frappe/frappe-bench/sites/currentsite.txt
+
+# Link any detected domain alias, localhost, and 127.0.0.1 to the site folder
+for ALIAS in "$DETECTED_DOMAIN" "localhost" "127.0.0.1" "0.0.0.0"; do
+  if [ -n "$ALIAS" ] && [ "$ALIAS" != "$SITE_NAME" ]; then
+    ln -sfn "$SITE_NAME" "$ALIAS" 2>/dev/null || true
+  fi
+done
 
 # Ensure frontend static assets are available
 if [ ! -f "assets/assets.json" ] || [ ! -d "assets/frappe" ]; then
@@ -267,6 +272,7 @@ exec ../env/bin/gunicorn \
   --workers 2 \
   --threads 4 \
   --timeout 120 \
+  --log-level warning \
   --worker-class gthread \
   --chdir /home/frappe/frappe-bench/sites \
   "frappe.app:application_with_statics()"
