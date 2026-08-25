@@ -341,6 +341,19 @@ def generate_cv(applicant_name):
             f"Current state: '{applicant.applicant_state}'"
         )
 
+    # Musaned pre-verification check for Saudi Arabia candidates
+    if getattr(applicant, "destination_country", None) == "Saudi Arabia":
+        is_musaned_verified = bool(
+            getattr(applicant, "is_uploaded_to_musaned", 0) or
+            getattr(applicant, "musaned_reference_no", None) or
+            getattr(applicant, "musaned_status", None) == "Registered"
+        )
+        if not is_musaned_verified:
+            frappe.throw(
+                "Cannot generate CV: Candidate is bound for Saudi Arabia but has not yet been "
+                "registered/verified on the Musaned platform. Please confirm Musaned registration first."
+            )
+
     # Format dates
     def fmt_d(d):
         if not d:
@@ -605,6 +618,38 @@ def restore_applicant(applicant_name, restore_option="auto"):
         "status": "success",
         "new_state": new_state,
         "message": f"Applicant {applicant_name} restored to state '{new_state}'."
+    }
+
+
+@frappe.whitelist()
+def update_musaned_status(applicant, is_uploaded_to_musaned=1, musaned_reference_no=None, musaned_status="Registered"):
+    """
+    Records and confirms Saudi Musaned platform registration for an applicant.
+    """
+    from frappe.utils import now_datetime
+    if not applicant or not frappe.db.exists("Applicant", applicant):
+        frappe.throw(f"Applicant '{applicant}' not found.")
+
+    doc = frappe.get_doc("Applicant", applicant)
+    doc.is_uploaded_to_musaned = int(is_uploaded_to_musaned)
+    if musaned_reference_no:
+        doc.musaned_reference_no = musaned_reference_no
+    if musaned_status:
+        doc.musaned_status = musaned_status
+    doc.musaned_uploaded_at = now_datetime()
+    doc.musaned_registered_by = frappe.session.user
+    doc.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {
+        "status": "success",
+        "applicant": applicant,
+        "is_uploaded_to_musaned": doc.is_uploaded_to_musaned,
+        "musaned_reference_no": doc.musaned_reference_no,
+        "musaned_status": doc.musaned_status,
+        "musaned_uploaded_at": str(doc.musaned_uploaded_at),
+        "can_generate_cv": True,
+        "message": f"Musaned registration confirmed for {applicant}."
     }
 
 
