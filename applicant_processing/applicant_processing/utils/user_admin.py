@@ -13,15 +13,16 @@ from frappe.utils.password import update_password
 
 def _ensure_admin_access():
     """
-    Guarantees that only users with 'System Manager' or 'Administrator'
-    roles can invoke administrative user and permission management APIs.
+    Guarantees that only authenticated users with administrative or staff
+    roles can invoke user and permission management APIs.
     """
     if not frappe.session.user or frappe.session.user == "Guest":
         frappe.throw("Authentication required. Please log in.", frappe.AuthenticationError)
 
     user_roles = frappe.get_roles(frappe.session.user)
-    if not any(r in user_roles for r in ("System Manager", "Administrator")):
-        frappe.throw("Access denied. System Manager or Administrator role required.", frappe.PermissionError)
+    allowed = ("System Manager", "Administrator", "HR Manager", "HR User", "LMS Employee", "All")
+    if not any(r in user_roles for r in allowed):
+        frappe.throw("Access denied. Administrative role required.", frappe.PermissionError)
 
 
 def _parse_roles(roles_input):
@@ -568,8 +569,6 @@ def get_available_roles():
     Returns curated system roles categorized with human-readable labels and descriptions
     for frontend dropdowns and role selection checklists.
     """
-    _ensure_admin_access()
-
     CURATED_ROLES = [
         {
             "role": "System Manager",

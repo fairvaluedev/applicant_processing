@@ -1,6 +1,18 @@
 import frappe
 import json
 
+# Re-export and whitelist user administration & role endpoints on api module
+from applicant_processing.applicant_processing.utils.user_admin import (
+    create_system_user,
+    update_system_user,
+    set_user_password,
+    assign_user_roles,
+    manage_user_permission,
+    get_system_users,
+    get_available_roles,
+    get_user_detail,
+)
+
 @frappe.whitelist()
 def create_parse_request(applicant_document_name):
     """
@@ -1693,31 +1705,37 @@ def get_paginated_applicants(page=1, page_size=10, search=None, applicant_state=
     total_count = frappe.db.sql(count_sql, values)[0][0]
 
     # 2. Paginated rows
+    has_col = lambda c: frappe.db.has_column("Applicant", c)
+    cols = [
+        "app.name",
+        "app.first_name",
+        "app.middle_name",
+        "app.last_name",
+        "app.full_name",
+        "app.gender",
+        "app.nationality",
+        "app.phone_number",
+        "app.city",
+        "app.date_of_birth",
+        "app.passport_number",
+        "app.passport_expiry",
+        "app.job_applied",
+        "app.destination_country",
+        "app.applicant_state",
+        "app.medical_status",
+        "app.medical_expiry_date",
+        "app.photo_passport",
+        "app.creation",
+        "app.modified"
+    ]
+    cols.append("app.is_uploaded_to_musaned" if has_col("is_uploaded_to_musaned") else "0 as is_uploaded_to_musaned")
+    cols.append("app.musaned_reference_no" if has_col("musaned_reference_no") else "NULL as musaned_reference_no")
+    cols.append("app.musaned_status" if has_col("musaned_status") else "NULL as musaned_status")
+
+    selected_cols = ",\n            ".join(cols)
     data_sql = f"""
         SELECT
-            app.name,
-            app.first_name,
-            app.middle_name,
-            app.last_name,
-            app.full_name,
-            app.gender,
-            app.nationality,
-            app.phone_number,
-            app.city,
-            app.date_of_birth,
-            app.passport_number,
-            app.passport_expiry,
-            app.job_applied,
-            app.destination_country,
-            app.applicant_state,
-            app.medical_status,
-            app.medical_expiry_date,
-            app.is_uploaded_to_musaned,
-            app.musaned_reference_no,
-            app.musaned_status,
-            app.photo_passport,
-            app.creation,
-            app.modified
+            {selected_cols}
         FROM `tabApplicant` app
         {where_clause}
         ORDER BY app.creation DESC
