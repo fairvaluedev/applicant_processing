@@ -1,0 +1,64 @@
+{
+  "doctype": "Contract Request Recipient",
+  "module": "Applicant Processing",
+  "is_single": 0,
+  "autoname": null,
+  "fields": [
+    {
+      "fieldname": "contractor",
+      "label": "Contractor",
+      "fieldtype": "Link",
+      "reqd": 0,
+      "read_only": 0,
+      "options": "Contractor",
+      "default": null,
+      "in_list_view": 1,
+      "in_standard_filter": 0,
+      "description": null,
+      "depends_on": null,
+      "mandatory_depends_on": null
+    },
+    {
+      "fieldname": "sent_date",
+      "label": "Sent Date",
+      "fieldtype": "Datetime",
+      "reqd": 0,
+      "read_only": 0,
+      "options": null,
+      "default": null,
+      "in_list_view": 1,
+      "in_standard_filter": 0,
+      "description": null,
+      "depends_on": null,
+      "mandatory_depends_on": null
+    },
+    {
+      "fieldname": "comm_method",
+      "label": "Communication Method",
+      "fieldtype": "Select",
+      "reqd": 0,
+      "read_only": 0,
+      "options": "Email\nWhatsApp",
+      "default": null,
+      "in_list_view": 1,
+      "in_standard_filter": 0,
+      "description": null,
+      "depends_on": null,
+      "mandatory_depends_on": null
+    },
+    {
+      "fieldname": "response_status",
+      "label": "Response Status",
+      "fieldtype": "Select",
+      "reqd": 0,
+      "read_only": 0,
+      "options": "Pending\nAccepted\nRejected",
+      "default": "Pending",
+      "in_list_view": 1,
+      "in_standard_filter": 0,
+      "description": null,
+      "depends_on": null,
+      "mandatory_depends_on": null
+    }
+  ]
+}

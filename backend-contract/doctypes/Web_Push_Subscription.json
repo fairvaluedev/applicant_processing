@@ -1,0 +1,92 @@
+{
+  "doctype": "Web Push Subscription",
+  "module": "Applicant Processing",
+  "is_single": 0,
+  "autoname": null,
+  "fields": [
+    {
+      "fieldname": "user",
+      "label": "User",
+      "fieldtype": "Link",
+      "reqd": 1,
+      "read_only": 0,
+      "options": "User",
+      "default": null,
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "description": null,
+      "depends_on": null,
+      "mandatory_depends_on": null
+    },
+    {
+      "fieldname": "endpoint",
+      "label": "Endpoint",
+      "fieldtype": "Small Text",
+      "reqd": 1,
+      "read_only": 0,
+      "options": null,
+      "default": null,
+      "in_list_view": 1,
+      "in_standard_filter": 0,
+      "description": null,
+      "depends_on": null,
+      "mandatory_depends_on": null
+    },
+    {
+      "fieldname": "p256dh",
+      "label": "P256DH Key",
+      "fieldtype": "Small Text",
+      "reqd": 1,
+      "read_only": 0,
+      "options": null,
+      "default": null,
+      "in_list_view": 0,
+      "in_standard_filter": 0,
+      "description": null,
+      "depends_on": null,
+      "mandatory_depends_on": null
+    },
+    {
+      "fieldname": "auth",
+      "label": "Auth Token",
+      "fieldtype": "Data",
+      "reqd": 1,
+      "read_only": 0,
+      "options": null,
+      "default": null,
+      "in_list_view": 0,
+      "in_standard_filter": 0,
+      "description": null,
+      "depends_on": null,
+      "mandatory_depends_on": null
+    },
+    {
+      "fieldname": "user_agent",
+      "label": "Browser / Device",
+      "fieldtype": "Data",
+      "reqd": 0,
+      "read_only": 0,
+      "options": null,
+      "default": null,
+      "in_list_view": 0,
+      "in_standard_filter": 0,
+      "description": null,
+      "depends_on": null,
+      "mandatory_depends_on": null
+    },
+    {
+      "fieldname": "is_active",
+      "label": "Is Active",
+      "fieldtype": "Check",
+      "reqd": 0,
+      "read_only": 0,
+      "options": null,
+      "default": "1",
+      "in_list_view": 1,
+      "in_standard_filter": 0,
+      "description": null,
+      "depends_on": null,
+      "mandatory_depends_on": null
+    }
+  ]
+}

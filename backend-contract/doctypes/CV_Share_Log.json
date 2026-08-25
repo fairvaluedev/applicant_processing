@@ -1,0 +1,78 @@
+{
+  "doctype": "CV Share Log",
+  "module": "Applicant Processing",
+  "is_single": 0,
+  "autoname": null,
+  "fields": [
+    {
+      "fieldname": "contractor",
+      "label": "Contractor",
+      "fieldtype": "Link",
+      "reqd": 1,
+      "read_only": 0,
+      "options": "Contractor",
+      "default": null,
+      "in_list_view": 1,
+      "in_standard_filter": 0,
+      "description": null,
+      "depends_on": null,
+      "mandatory_depends_on": null
+    },
+    {
+      "fieldname": "channel",
+      "label": "Channel",
+      "fieldtype": "Select",
+      "reqd": 1,
+      "read_only": 0,
+      "options": "WhatsApp\nEmail",
+      "default": null,
+      "in_list_view": 1,
+      "in_standard_filter": 0,
+      "description": null,
+      "depends_on": null,
+      "mandatory_depends_on": null
+    },
+    {
+      "fieldname": "shared_by",
+      "label": "Shared By",
+      "fieldtype": "Link",
+      "reqd": 1,
+      "read_only": 0,
+      "options": "User",
+      "default": null,
+      "in_list_view": 1,
+      "in_standard_filter": 0,
+      "description": null,
+      "depends_on": null,
+      "mandatory_depends_on": null
+    },
+    {
+      "fieldname": "shared_date",
+      "label": "Shared Date",
+      "fieldtype": "Datetime",
+      "reqd": 1,
+      "read_only": 0,
+      "options": null,
+      "default": null,
+      "in_list_view": 1,
+      "in_standard_filter": 0,
+      "description": null,
+      "depends_on": null,
+      "mandatory_depends_on": null
+    },
+    {
+      "fieldname": "status",
+      "label": "Status",
+      "fieldtype": "Select",
+      "reqd": 1,
+      "read_only": 0,
+      "options": "Sent\nDelivered\nFailed",
+      "default": "Sent",
+      "in_list_view": 1,
+      "in_standard_filter": 0,
+      "description": null,
+      "depends_on": null,
+      "mandatory_depends_on": null
+    }
+  ]
+}

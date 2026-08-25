@@ -1,0 +1,375 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Applicant Processing API & Integration Contract",
+    "description": "Authoritative machine-readable API contract for Frontend-Backend integration with the Frappe Applicant Processing system.",
+    "version": "1.2.0"
+  },
+  "servers": [
+    {
+      "url": "https://{site_host}",
+      "description": "Production Frappe Backend (Railway / Cloud)",
+      "variables": {
+        "site_host": {
+          "default": "applicant-processing.up.railway.app"
+        }
+      }
+    },
+    {
+      "url": "http://applicant-processing.localhost:8000",
+      "description": "Local Development Environment"
+    }
+  ],
+  "components": {
+    "responses": {
+      "ValidationError": {
+        "description": "Validation Error (417)",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/FrappeErrorEnvelope"
+            }
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "TokenAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "Authorization",
+        "description": "Format: token <api_key>:<api_secret>"
+      }
+    },
+    "schemas": {
+      "Applicant": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "first_name": {
+            "type": "string"
+          },
+          "last_name": {
+            "type": "string"
+          },
+          "medical_expiry_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "applicant_state": {
+            "type": "string"
+          }
+        }
+      },
+      "FrappeErrorEnvelope": {
+        "type": "object",
+        "properties": {
+          "exception": {
+            "type": "string"
+          },
+          "exc_type": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "security": [
+    {
+      "TokenAuth": []
+    },
+    {
+      "CookieAuth": []
+    }
+  ],
+  "paths": {
+    "/api/resource/Applicant": {
+      "get": {
+        "summary": "List Applicants",
+        "description": "Fetch filtered list of applicants with pagination",
+        "parameters": [
+          {
+            "name": "fields",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "example": "[\"name\",\"first_name\",\"last_name\",\"applicant_state\",\"medical_status\"]"
+          },
+          {
+            "name": "filters",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "example": "[[\"Applicant\",\"applicant_state\",\"=\",\"Registered\"]]"
+          },
+          {
+            "name": "limit_start",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 0
+            }
+          },
+          {
+            "name": "limit_page_length",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of applicants",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Applicant"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create Applicant",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Applicant"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applicant created successfully"
+          },
+          "417": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/api/resource/Applicant/{name}": {
+      "get": {
+        "summary": "Get Applicant Details",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Applicant document details"
+          },
+          "404": {
+            "description": "Applicant not found"
+          }
+        }
+      },
+      "put": {
+        "summary": "Update Applicant Biodata",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Applicant"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applicant updated successfully"
+          }
+        }
+      }
+    },
+    "/api/method/applicant_processing.applicant_processing.doctype.applicant.applicant.register_applicant": {
+      "post": {
+        "summary": "Register Applicant",
+        "description": "Validates biodata and advances applicant state from Draft to Registered",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "applicant_name"
+                ],
+                "properties": {
+                  "applicant_name": {
+                    "type": "string",
+                    "example": "APP-00001"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applicant registered successfully"
+          },
+          "417": {
+            "description": "Validation failure (e.g. Medical Status is UNFIT)"
+          }
+        }
+      }
+    },
+    "/api/method/applicant_processing.applicant_processing.doctype.applicant.applicant.generate_cv": {
+      "post": {
+        "summary": "Generate CV PDF & Sync to Cloudflare R2",
+        "description": "Renders bilingual 2-page CV PDF with embedded photos, stores in Cloudflare R2 bucket, and emits realtime cv_generated socket event.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "applicant_name"
+                ],
+                "properties": {
+                  "applicant_name": {
+                    "type": "string",
+                    "example": "APP-00001"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "CV generated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "object",
+                      "properties": {
+                        "cv_record": {
+                          "type": "string",
+                          "example": "CV-00001"
+                        },
+                        "file_url": {
+                          "type": "string",
+                          "example": "https://tracking-agency...r2.../cvs/CV-APP-00001-CV-00001.pdf"
+                        },
+                        "r2_url": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/method/applicant_processing.applicant_processing.utils.contract_parser.parse_contract_document": {
+      "post": {
+        "summary": "Parse Bilateral Saudi Contract PDF",
+        "description": "Extracts contract number, visa number, sponsor details, agency, and terms from attached PDF using PyMuPDF and updates Dossier & Applicant atomically.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "dossier_name"
+                ],
+                "properties": {
+                  "dossier_name": {
+                    "type": "string",
+                    "example": "DOSSIER-00001"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Contract parsed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "example": "success"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "type": "object"
+                        },
+                        "updated_fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

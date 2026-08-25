@@ -1,0 +1,64 @@
+{
+  "doctype": "Parser Config",
+  "module": "Applicant Processing",
+  "is_single": 1,
+  "autoname": null,
+  "fields": [
+    {
+      "fieldname": "enabled",
+      "label": "Enabled",
+      "fieldtype": "Check",
+      "reqd": 0,
+      "read_only": 0,
+      "options": null,
+      "default": "1",
+      "in_list_view": 0,
+      "in_standard_filter": 0,
+      "description": null,
+      "depends_on": null,
+      "mandatory_depends_on": null
+    },
+    {
+      "fieldname": "parser_engine",
+      "label": "Parser Engine",
+      "fieldtype": "Select",
+      "reqd": 1,
+      "read_only": 0,
+      "options": "OCR\nAI\nManual\nCustom",
+      "default": "AI",
+      "in_list_view": 0,
+      "in_standard_filter": 0,
+      "description": null,
+      "depends_on": null,
+      "mandatory_depends_on": null
+    },
+    {
+      "fieldname": "max_concurrent_parses",
+      "label": "Max Concurrent Parses",
+      "fieldtype": "Int",
+      "reqd": 0,
+      "read_only": 0,
+      "options": null,
+      "default": "3",
+      "in_list_view": 0,
+      "in_standard_filter": 0,
+      "description": null,
+      "depends_on": null,
+      "mandatory_depends_on": null
+    },
+    {
+      "fieldname": "webhook_url",
+      "label": "Webhook URL (Optional)",
+      "fieldtype": "Data",
+      "reqd": 0,
+      "read_only": 0,
+      "options": null,
+      "default": null,
+      "in_list_view": 0,
+      "in_standard_filter": 0,
+      "description": null,
+      "depends_on": null,
+      "mandatory_depends_on": null
+    }
+  ]
+}

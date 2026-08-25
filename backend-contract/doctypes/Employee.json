@@ -1,0 +1,53 @@
+{
+  "doctype": "Employee",
+  "module": "HR",
+  "fields": [
+    {
+      "fieldname": "employee",
+      "label": "Employee ID",
+      "fieldtype": "Data",
+      "reqd": 1
+    },
+    {
+      "fieldname": "employee_name",
+      "label": "Employee Name",
+      "fieldtype": "Data",
+      "reqd": 1
+    },
+    {
+      "fieldname": "user_id",
+      "label": "User ID",
+      "fieldtype": "Link",
+      "options": "User"
+    },
+    {
+      "fieldname": "status",
+      "label": "Status",
+      "fieldtype": "Select",
+      "options": "Active\nInactive\nSuspended\nLeft",
+      "default": "Active"
+    },
+    {
+      "fieldname": "department",
+      "label": "Department",
+      "fieldtype": "Link",
+      "options": "Department"
+    },
+    {
+      "fieldname": "designation",
+      "label": "Designation",
+      "fieldtype": "Link",
+      "options": "Designation"
+    },
+    {
+      "fieldname": "cell_number",
+      "label": "Mobile Number",
+      "fieldtype": "Data"
+    },
+    {
+      "fieldname": "company_email",
+      "label": "Company Email",
+      "fieldtype": "Data"
+    }
+  ]
+}

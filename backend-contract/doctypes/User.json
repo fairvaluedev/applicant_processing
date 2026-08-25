@@ -1,0 +1,52 @@
+{
+  "doctype": "User",
+  "module": "Core",
+  "fields": [
+    {
+      "fieldname": "email",
+      "label": "Email",
+      "fieldtype": "Data",
+      "reqd": 1
+    },
+    {
+      "fieldname": "first_name",
+      "label": "First Name",
+      "fieldtype": "Data",
+      "reqd": 1
+    },
+    {
+      "fieldname": "last_name",
+      "label": "Last Name",
+      "fieldtype": "Data"
+    },
+    {
+      "fieldname": "full_name",
+      "label": "Full Name",
+      "fieldtype": "Data",
+      "read_only": 1
+    },
+    {
+      "fieldname": "username",
+      "label": "Username",
+      "fieldtype": "Data"
+    },
+    {
+      "fieldname": "enabled",
+      "label": "Enabled",
+      "fieldtype": "Check",
+      "default": "1"
+    },
+    {
+      "fieldname": "roles",
+      "label": "Roles",
+      "fieldtype": "Table",
+      "options": "Has Role"
+    },
+    {
+      "fieldname": "user_type",
+      "label": "User Type",
+      "fieldtype": "Select",
+      "options": "System User\nWebsite User"
+    }
+  ]
+}
