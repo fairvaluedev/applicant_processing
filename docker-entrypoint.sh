@@ -220,8 +220,7 @@ if [ -z "$USER_TABLE_EXISTS" ]; then
     --install-app applicant_processing \
     --no-setup-db \
     --set-default \
-    --force \
-    --verbose
+    --force
 else
   echo "=========================================================="
   echo " Existing database detected. Running migrations on: $SITE_NAME..."
